@@ -1,38 +1,6 @@
-//! PII Cleaner - A Polars extension for removing personally identifiable information
-
 use pyo3::prelude::*;
-use pyo3_polars::derive::polars_expr;
-use pyo3_polars::export::polars_core::prelude::*;
-use std::fmt::Write;
 
 mod patterns;
-
-/// Clean PII in a Polars string column
-#[polars_expr(output_type=String)]
-fn pl_clean_pii(inputs: &[Series]) -> PolarsResult<Series> {
-    let series = &inputs[0];
-    let ca = series.str()?;
-
-    let patterns = patterns::get_all_patterns();
-
-    let result = ca.apply_to_buffer(|value, output| {
-        let mut result = value.to_string();
-
-        // Apply all patterns with redaction
-        for pattern in &patterns {
-            let re = regex::Regex::new(pattern).unwrap();
-            result = re
-                .replace_all(&result, |caps: &regex::Captures| {
-                    "-".repeat(caps.get(0).unwrap().as_str().len())
-                })
-                .to_string();
-        }
-
-        write!(output, "{}", result).unwrap();
-    });
-
-    Ok(result.into_series())
-}
 
 /// Detect PII in a string and return match information
 #[pyfunction]
@@ -49,7 +17,6 @@ fn detect_pii(text: &str) -> PyResult<Vec<(usize, usize, String)>> {
         all_matches.extend(matches);
     }
 
-    // Sort by start position
     all_matches.sort_by_key(|&(start, _, _)| start);
     Ok(all_matches)
 }
@@ -58,38 +25,41 @@ fn detect_pii(text: &str) -> PyResult<Vec<(usize, usize, String)>> {
 #[pyfunction]
 fn clean_pii(text: &str, cleaning: &str) -> PyResult<String> {
     let patterns = patterns::get_all_patterns();
-    let mut has_pii = false;
-
-    // Check if any pattern matches
-    for pattern in &patterns {
-        let re = regex::Regex::new(pattern).unwrap();
-        if re.is_match(text) {
-            has_pii = true;
-            break;
-        }
-    }
-
-    if !has_pii {
-        return Ok(text.to_string());
-    }
-
+    
     match cleaning {
-        "replace" => Ok("[PII detected, comment redacted.]".to_string()),
+        "replace" => {
+            // Replace: if ANY PII found, replace entire text with message
+            for pattern in patterns {
+                let re = regex::Regex::new(pattern).unwrap();
+                if re.is_match(text) {
+                    return Ok("[PII detected, comment redacted]".to_string());
+                }
+            }
+            // No PII found, return original text
+            Ok(text.to_string())
+        },
         "redact" => {
+            // Redact: replace each PII match with dashes, keep rest of text
             let mut result = text.to_string();
             for pattern in patterns {
                 let re = regex::Regex::new(pattern).unwrap();
-                result = re
-                    .replace_all(&result, |caps: &regex::Captures| {
-                        "-".repeat(caps.get(0).unwrap().as_str().len())
-                    })
-                    .to_string();
+                result = re.replace_all(&result, |caps: &regex::Captures| {
+                    "-".repeat(caps.get(0).unwrap().as_str().len())
+                }).to_string();
+            }
+            Ok(result)
+        },
+        _ => {
+            // Default to redact
+            let mut result = text.to_string();
+            for pattern in patterns {
+                let re = regex::Regex::new(pattern).unwrap();
+                result = re.replace_all(&result, |caps: &regex::Captures| {
+                    "-".repeat(caps.get(0).unwrap().as_str().len())
+                }).to_string();
             }
             Ok(result)
         }
-        _ => Err(pyo3::exceptions::PyValueError::new_err(
-            "Unrecognised value for `cleaning`. Use 'replace' or 'redact'.",
-        )),
     }
 }
 
@@ -133,12 +103,11 @@ fn get_available_cleaners() -> PyResult<Vec<String>> {
     Ok(cleaners)
 }
 
-/// A Python module implemented in Rust.
 #[pymodule]
-fn _internal(_py: Python, _m: &Bound<'_, PyModule>) -> PyResult<()> {
-    _m.add_function(wrap_pyfunction!(detect_pii, _m)?)?;
-    _m.add_function(wrap_pyfunction!(clean_pii, _m)?)?;
-    _m.add_function(wrap_pyfunction!(detect_pii_with_cleaners, _m)?)?;
-    _m.add_function(wrap_pyfunction!(get_available_cleaners, _m)?)?;
+fn _internal(_py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
+    m.add_function(wrap_pyfunction!(detect_pii, m)?)?;
+    m.add_function(wrap_pyfunction!(clean_pii, m)?)?;
+    m.add_function(wrap_pyfunction!(detect_pii_with_cleaners, m)?)?;
+    m.add_function(wrap_pyfunction!(get_available_cleaners, m)?)?;
     Ok(())
 }
