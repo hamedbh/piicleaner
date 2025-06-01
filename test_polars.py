@@ -6,13 +6,13 @@ from piicleaner import Cleaner
 data = {
     "text": [
         "Contact John at john@example.com",
-        "My NINO is AB123456C", 
+        "My NINO is AB123456C",
         "Call me at +44 20 7946 0958",
         "Address: 123 High Street",
         "Cost was £1,500",
-        "No PII here"
+        "No PII here",
     ],
-    "id": [1, 2, 3, 4, 5, 6]
+    "id": [1, 2, 3, 4, 5, 6],
 }
 
 df = pl.DataFrame(data)

@@ -11,8 +11,11 @@ numbers, email addresses, phone numbers, and more.
 from ._cleaner import Cleaner
 from ._internal import (
     clean_pii,
+    clean_pii_batch,
     detect_pii,
+    detect_pii_batch,
     detect_pii_with_cleaners,
+    detect_pii_with_cleaners_batch,
     get_available_cleaners,
 )
 
@@ -31,8 +34,11 @@ __version__ = "0.1.0"
 
 __all__ = [
     "detect_pii",
+    "detect_pii_batch",
     "clean_pii",
+    "clean_pii_batch",
     "detect_pii_with_cleaners",
+    "detect_pii_with_cleaners_batch",
     "get_available_cleaners",
     "Cleaner",
 ]

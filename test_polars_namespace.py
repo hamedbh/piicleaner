@@ -1,5 +1,4 @@
 import polars as pl
-from piicleaner import Cleaner
 
 # Test data
 df = pl.DataFrame(

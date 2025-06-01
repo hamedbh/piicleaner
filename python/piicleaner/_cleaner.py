@@ -48,9 +48,28 @@ class Cleaner(PolarsCleanerMixin):
 
     def clean_pii(self, string, cleaning, ignore_case=True):
         """Clean PII from a string"""
-        # For now, we'll use the all-patterns version
-        # TODO: add cleaner-specific cleaning
-        return rust_clean_pii(string, cleaning)
+        # Use cleaner-specific cleaning if not using all patterns
+        if self.cleaners == "all":
+            return rust_clean_pii(string, cleaning)
+        else:
+            # For specific cleaners, we need to implement custom logic
+            # since there's no rust function for cleaner-specific cleaning yet
+            # For now, detect with specific cleaners and replace manually
+            matches = self.detect_pii(string)
+            if not matches:
+                return string
+            
+            if cleaning == "replace":
+                return "[PII detected, comment redacted]"
+            else:  # redact
+                result = string
+                # Sort matches by start position in reverse to avoid index shifting
+                sorted_matches = sorted(matches, key=lambda x: x["start"], reverse=True)
+                for match in sorted_matches:
+                    start, end = match["start"], match["end"]
+                    replacement = "-" * (end - start)
+                    result = result[:start] + replacement + result[end:]
+                return result
 
     def clean_list(self, string_list, cleaning, ignore_case=True):
         """Method for cleaning PII in a list of strings.
@@ -65,7 +84,13 @@ class Cleaner(PolarsCleanerMixin):
         if not all(isinstance(x, str) for x in string_list):
             raise TypeError("All values in list must be `str`.")
 
-        return [self.clean_pii(x, cleaning, ignore_case) for x in string_list]
+        # Use vectorized function for better performance
+        if self.cleaners == "all":
+            from piicleaner._internal import clean_pii_batch
+            return clean_pii_batch(string_list, cleaning)
+        else:
+            # For specific cleaners, fall back to individual processing for now
+            return [self.clean_pii(text, cleaning, ignore_case) for text in string_list]
 
     @staticmethod
     def get_available_cleaners():

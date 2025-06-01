@@ -31,7 +31,7 @@ class PolarsCleanerMixin:
         if column_name not in df.columns:
             raise ValueError(f"Column '{column_name}' not found in DataFrame")
 
-        # Clean the column using our existing clean_list method
+        # Use the clean_list method which respects specific cleaners
         texts = df[column_name].to_list()
         cleaned_texts = self.clean_list(texts, cleaning)
 
@@ -61,19 +61,44 @@ class PolarsCleanerMixin:
         if column_name not in df.columns:
             raise ValueError(f"Column '{column_name}' not found in DataFrame")
 
-        # Detect PII in each row
-        texts = df[column_name].to_list()
-        results = []
+        # Use vectorized detection for much better performance
+        if len(df) == 0:
+            # Return empty DataFrame with proper structure
+            return pl.DataFrame(
+                {"row_index": [], "start": [], "end": [], "text": []},
+                schema={
+                    "row_index": pl.Int64,
+                    "start": pl.Int64,
+                    "end": pl.Int64,
+                    "text": pl.String,
+                },
+            )
 
-        for i, text in enumerate(texts):
-            pii_matches = self.detect_pii(text)
-            for match in pii_matches:
+        # Get texts and use vectorized detection
+        texts = df[column_name].to_list()
+
+        # Import and use vectorized function
+        from piicleaner._internal import detect_pii_batch
+
+        if self.cleaners == "all":
+            batch_results = detect_pii_batch(texts)
+        else:
+            from piicleaner._internal import detect_pii_with_cleaners_batch
+
+            batch_results = detect_pii_with_cleaners_batch(
+                texts, self.cleaners
+            )
+
+        # Convert batch results to flat format
+        results = []
+        for row_idx, matches in enumerate(batch_results):
+            for start, end, text in matches:
                 results.append(
                     {
-                        "row_index": i,
-                        "start": match["start"],
-                        "end": match["end"],
-                        "text": match["text"],
+                        "row_index": row_idx,
+                        "start": start,
+                        "end": end,
+                        "text": text,
                     }
                 )
 

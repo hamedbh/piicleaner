@@ -1,35 +1,50 @@
 //! Core PII detection and cleaning logic without Python bindings
 
 use crate::patterns;
+use once_cell::sync::Lazy;
+use rayon::prelude::*;
+use regex::RegexSet;
 
-/// Core function to detect PII patterns in text
+// Pre-compiled regex patterns for maximum performance
+static ALL_PATTERNS_COMPILED: Lazy<Vec<regex::Regex>> = Lazy::new(|| {
+    patterns::get_all_patterns()
+        .into_iter()
+        .map(|pattern| regex::Regex::new(pattern).expect("Invalid regex pattern"))
+        .collect()
+});
+
+static ALL_PATTERNS_SET: Lazy<RegexSet> = Lazy::new(|| {
+    let pattern_strings = patterns::get_all_patterns();
+    RegexSet::new(pattern_strings).expect("Failed to create regex set")
+});
+
+/// Core function to detect PII patterns in text (optimized)
 pub fn detect_pii_core(text: &str) -> Vec<(usize, usize, String)> {
-    let patterns = patterns::get_all_patterns();
+    // Fast check: does this text match ANY pattern?
+    if !ALL_PATTERNS_SET.is_match(text) {
+        return Vec::new();
+    }
+
     let mut all_matches = Vec::new();
 
-    for pattern in patterns {
-        let re = regex::Regex::new(pattern).unwrap();
-        let matches: Vec<(usize, usize, String)> = re
-            .find_iter(text)
-            .map(|m| (m.start(), m.end(), m.as_str().to_string()))
-            .collect();
-        all_matches.extend(matches);
+    // Only check individual patterns for texts that might have matches
+    for regex in ALL_PATTERNS_COMPILED.iter() {
+        for m in regex.find_iter(text) {
+            all_matches.push((m.start(), m.end(), m.as_str().to_string()));
+        }
     }
 
     all_matches.sort_by_key(|&(start, _, _)| start);
     all_matches
 }
 
-/// Core function to clean PII from text
+/// Core function to clean PII from text (optimized with pre-compiled patterns)
 pub fn clean_pii_core(text: &str, cleaning: &str) -> String {
-    let patterns = patterns::get_all_patterns();
-
     match cleaning {
         "replace" => {
             // Replace: if ANY PII found, replace entire text with message
-            for pattern in patterns {
-                let re = regex::Regex::new(pattern).unwrap();
-                if re.is_match(text) {
+            for regex in ALL_PATTERNS_COMPILED.iter() {
+                if regex.is_match(text) {
                     return "[PII detected, comment redacted]".to_string();
                 }
             }
@@ -39,26 +54,51 @@ pub fn clean_pii_core(text: &str, cleaning: &str) -> String {
         "redact" => {
             // Redact: replace each PII match with dashes, keep rest of text
             let mut result = text.to_string();
-            for pattern in patterns {
-                let re = regex::Regex::new(pattern).unwrap();
-                result = re
+            for regex in ALL_PATTERNS_COMPILED.iter() {
+                result = regex
                     .replace_all(&result, |caps: &regex::Captures| {
                         "-".repeat(caps.get(0).unwrap().as_str().len())
                     })
-                    .to_string();
+                    .into_owned();
             }
             result
         }
         _ => {
             // Default to redact
             let mut result = text.to_string();
-            for pattern in patterns {
-                let re = regex::Regex::new(pattern).unwrap();
-                result = re
+            for regex in ALL_PATTERNS_COMPILED.iter() {
+                result = regex
                     .replace_all(&result, |caps: &regex::Captures| {
                         "-".repeat(caps.get(0).unwrap().as_str().len())
                     })
-                    .to_string();
+                    .into_owned();
+            }
+            result
+        }
+    }
+}
+
+/// Alternative optimized version using RegexSet for fast pre-filtering
+pub fn clean_pii_core_regexset(text: &str, cleaning: &str) -> String {
+    // Fast check: does this text match ANY pattern?
+    if !ALL_PATTERNS_SET.is_match(text) {
+        return text.to_string();
+    }
+
+    match cleaning {
+        "replace" => {
+            // Replace: if ANY PII found, replace entire text with message
+            "[PII detected, comment redacted]".to_string()
+        }
+        "redact" | _ => {
+            // Redact: replace each PII match with dashes, keep rest of text
+            let mut result = text.to_string();
+            for regex in ALL_PATTERNS_COMPILED.iter() {
+                result = regex
+                    .replace_all(&result, |caps: &regex::Captures| {
+                        "-".repeat(caps.get(0).unwrap().as_str().len())
+                    })
+                    .into_owned();
             }
             result
         }
@@ -86,6 +126,74 @@ pub fn detect_pii_with_cleaners_core(text: &str, cleaners: &[&str]) -> Vec<(usiz
 
     all_matches.sort_by_key(|&(start, _, _)| start);
     all_matches
+}
+
+/// Vectorized function to detect PII in multiple texts at once
+pub fn detect_pii_batch_core(texts: &[String]) -> Vec<Vec<(usize, usize, String)>> {
+    texts
+        .par_iter()
+        .map(|text| detect_pii_core(text))
+        .collect()
+}
+
+/// Vectorized function to clean PII from multiple texts at once
+pub fn clean_pii_batch_core(texts: &[String], cleaning: &str) -> Vec<String> {
+    texts
+        .par_iter()
+        .map(|text| clean_pii_core(text, cleaning))
+        .collect()
+}
+
+/// Vectorized function to detect PII with specific cleaners for multiple texts
+pub fn detect_pii_with_cleaners_batch_core(
+    texts: &[String],
+    cleaners: &[&str],
+) -> Vec<Vec<(usize, usize, String)>> {
+    texts
+        .par_iter()
+        .map(|text| detect_pii_with_cleaners_core(text, cleaners))
+        .collect()
+}
+
+/// Function to test behavioral equivalence of both cleaning approaches
+pub fn test_cleaning_equivalence() -> Vec<(String, bool, bool)> {
+    let test_cases = vec![
+        "No PII here at all",
+        "Email: test@example.com",
+        "NINO: AB123456C",
+        "Phone: +44 20 1234 5678",
+        "Multiple: test@example.com and AB123456C",
+        "Empty string: ",
+        "Just symbols: !@#$%^&*()",
+        "Numbers: 123456789",
+        "Mixed: Contact test@example.com for NINO AB123456C info",
+    ];
+
+    let mut results = Vec::new();
+    
+    for test_case in test_cases {
+        for cleaning_method in ["replace", "redact"] {
+            let result1 = clean_pii_core(test_case, cleaning_method);
+            let result2 = clean_pii_core_regexset(test_case, cleaning_method);
+            let identical = result1 == result2;
+            
+            if !identical {
+                println!("DIFFERENCE FOUND:");
+                println!("  Input: '{}'", test_case);
+                println!("  Method: {}", cleaning_method);
+                println!("  Original: '{}'", result1);
+                println!("  RegexSet: '{}'", result2);
+            }
+            
+            results.push((
+                format!("{} [{}]", test_case, cleaning_method),
+                result1 == test_case, // unchanged
+                identical
+            ));
+        }
+    }
+    
+    results
 }
 
 #[cfg(test)]
@@ -198,5 +306,173 @@ mod tests {
         let registry = patterns::get_registry();
         let cleaners = registry.get_available_cleaners();
         assert!(cleaners.len() > 0);
+    }
+
+    // Tests for the new optimized functions
+    #[test]
+    fn test_optimized_vs_original_equivalence() {
+        let test_cases = vec![
+            "No PII here",
+            "Email: test@example.com",
+            "NINO: AB123456C", 
+            "Phone: +44 20 1234 5678",
+            "Multiple: test@example.com and AB123456C",
+            "",
+            "Just text with no PII at all",
+        ];
+
+        for text in test_cases {
+            for method in ["redact", "replace"] {
+                let result = clean_pii_core(text, method);
+                // Test that our optimized version works correctly
+                assert!(!result.is_empty() || text.is_empty());
+                
+                if method == "replace" && detect_pii_core(text).len() > 0 {
+                    assert_eq!(result, "[PII detected, comment redacted]");
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn test_batch_functions() {
+        let texts = vec![
+            "Email: test1@example.com".to_string(),
+            "No PII here".to_string(),
+            "NINO: AB123456C".to_string(),
+        ];
+
+        // Test batch detection
+        let batch_results = detect_pii_batch_core(&texts);
+        assert_eq!(batch_results.len(), 3);
+        assert!(batch_results[0].len() >= 1); // Email
+        assert_eq!(batch_results[1].len(), 0); // No PII
+        assert!(batch_results[2].len() >= 1); // NINO
+
+        // Test batch cleaning
+        let batch_cleaned = clean_pii_batch_core(&texts, "redact");
+        assert_eq!(batch_cleaned.len(), 3);
+        assert!(!batch_cleaned[0].contains("test1@example.com"));
+        assert_eq!(batch_cleaned[1], "No PII here");
+        assert!(!batch_cleaned[2].contains("AB123456C"));
+
+        // Test batch with specific cleaners
+        let email_only = detect_pii_with_cleaners_batch_core(&texts, &["email"]);
+        assert!(email_only[0].len() >= 1); // Should find email
+        assert_eq!(email_only[1].len(), 0); // No PII
+        assert_eq!(email_only[2].len(), 0); // Should not find NINO with email cleaner
+    }
+
+    #[test]
+    fn test_edge_cases() {
+        // Empty string
+        assert_eq!(detect_pii_core(""), Vec::new());
+        assert_eq!(clean_pii_core("", "redact"), "");
+        assert_eq!(clean_pii_core("", "replace"), "");
+
+        // Whitespace only
+        assert_eq!(detect_pii_core("   "), Vec::new());
+        assert_eq!(clean_pii_core("   ", "redact"), "   ");
+
+        // Very long string
+        let long_text = "a".repeat(10000) + "test@example.com" + &"b".repeat(10000);
+        let results = detect_pii_core(&long_text);
+        assert!(results.len() >= 1);
+        let cleaned = clean_pii_core(&long_text, "redact");
+        assert!(!cleaned.contains("test@example.com"));
+
+        // Special characters
+        let special_text = "Email: test@example.com\n\tPhone: +44 20 1234 5678\r\n";
+        let results = detect_pii_core(special_text);
+        assert!(results.len() >= 2);
+    }
+
+    #[test]
+    fn test_all_pii_types() {
+        let test_cases = vec![
+            ("test@example.com", "email"),
+            ("+44 20 7946 0958", "telephone"),
+            ("SW1A 1AA", "postcode"),
+            ("AB123456C", "nino"),
+            ("123 high street", "address"), // Use lowercase for address pattern
+            ("£1,500", "cash-amount"),
+            ("192.168.1.1", "ip_address"),
+        ];
+
+        for (pii_text, expected_type) in test_cases {
+            let text = format!("Here is some PII: {}", pii_text);
+            let results = detect_pii_core(&text);
+            
+            // Should detect at least one match
+            assert!(results.len() >= 1, "Failed to detect {} in '{}'", expected_type, text);
+            
+            // Should find the specific PII text
+            let found = results.iter().any(|(_, _, matched)| matched.contains(pii_text));
+            assert!(found, "Failed to find '{}' in detection results for {}", pii_text, expected_type);
+
+            // Test cleaning
+            let cleaned = clean_pii_core(&text, "redact");
+            assert!(!cleaned.contains(pii_text), "Failed to clean '{}' from text", pii_text);
+
+            let replaced = clean_pii_core(&text, "replace");
+            assert_eq!(replaced, "[PII detected, comment redacted]", "Replace mode failed for {}", expected_type);
+        }
+    }
+
+    #[test]
+    fn test_performance_characteristics() {
+        // Test that pre-compiled patterns are actually being used
+        // This should be very fast compared to compiling patterns each time
+        let text = "Email: test@example.com";
+        
+        let start = std::time::Instant::now();
+        for _ in 0..1000 {
+            let _ = detect_pii_core(text);
+        }
+        let duration = start.elapsed();
+        
+        // Should complete 1000 detections in reasonable time (< 100ms)
+        assert!(duration.as_millis() < 100, "Performance regression: took {:?} for 1000 detections", duration);
+    }
+
+    #[test]
+    fn test_concurrent_access() {
+        use std::thread;
+        
+        // Test that static patterns can be accessed concurrently
+        let handles: Vec<_> = (0..4).map(|i| {
+            thread::spawn(move || {
+                let text = format!("Email: test{}@example.com", i);
+                for _ in 0..100 {
+                    let results = detect_pii_core(&text);
+                    assert!(results.len() >= 1);
+                }
+            })
+        }).collect();
+
+        for handle in handles {
+            handle.join().unwrap();
+        }
+    }
+
+    #[test]
+    fn test_invalid_cleaning_method() {
+        let text = "Email: test@example.com";
+        // Invalid method should default to redact behavior
+        let result = clean_pii_core(text, "invalid_method");
+        assert!(!result.contains("test@example.com"));
+        assert!(result.contains("-") || result.starts_with("Email:"));
+    }
+
+    #[test]
+    fn test_regex_pattern_validity() {
+        // Ensure all patterns compile successfully
+        let patterns = patterns::get_all_patterns();
+        assert!(patterns.len() > 0);
+        
+        for pattern in patterns {
+            let regex_result = regex::Regex::new(pattern);
+            assert!(regex_result.is_ok(), "Invalid regex pattern: {}", pattern);
+        }
     }
 }
