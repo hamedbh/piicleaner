@@ -78,7 +78,6 @@ pub fn clean_pii_core(text: &str, cleaning: &str) -> String {
     }
 }
 
-
 /// Core function to detect PII with specific cleaners
 pub fn detect_pii_with_cleaners_core(text: &str, cleaners: &[&str]) -> Vec<(usize, usize, String)> {
     let patterns = if cleaners.len() == 1 && cleaners[0] == "all" {
@@ -104,10 +103,7 @@ pub fn detect_pii_with_cleaners_core(text: &str, cleaners: &[&str]) -> Vec<(usiz
 
 /// Vectorized function to detect PII in multiple texts at once
 pub fn detect_pii_batch_core(texts: &[String]) -> Vec<Vec<(usize, usize, String)>> {
-    texts
-        .par_iter()
-        .map(|text| detect_pii_core(text))
-        .collect()
+    texts.par_iter().map(|text| detect_pii_core(text)).collect()
 }
 
 /// Vectorized function to clean PII from multiple texts at once
@@ -161,7 +157,7 @@ fn clean_pii_with_specific_patterns_core(
 ) -> String {
     // Check if any pattern matches
     let has_matches = compiled_patterns.iter().any(|regex| regex.is_match(text));
-    
+
     if !has_matches {
         return text.to_string();
     }
@@ -181,7 +177,6 @@ fn clean_pii_with_specific_patterns_core(
         }
     }
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -301,7 +296,7 @@ mod tests {
         let test_cases = vec![
             "No PII here",
             "Email: test@example.com",
-            "NINO: AB123456C", 
+            "NINO: AB123456C",
             "Phone: +44 20 1234 5678",
             "Multiple: test@example.com and AB123456C",
             "",
@@ -313,7 +308,7 @@ mod tests {
                 let result = clean_pii_core(text, method);
                 // Test that our optimized version works correctly
                 assert!(!result.is_empty() || text.is_empty());
-                
+
                 if method == "replace" && detect_pii_core(text).len() > 0 {
                     assert_eq!(result, "[PII detected, comment redacted]");
                 }
@@ -396,20 +391,39 @@ mod tests {
         for (pii_text, expected_type) in test_cases {
             let text = format!("Here is some PII: {}", pii_text);
             let results = detect_pii_core(&text);
-            
+
             // Should detect at least one match
-            assert!(results.len() >= 1, "Failed to detect {} in '{}'", expected_type, text);
-            
+            assert!(
+                results.len() >= 1,
+                "Failed to detect {} in '{}'",
+                expected_type,
+                text
+            );
+
             // Should find the specific PII text
-            let found = results.iter().any(|(_, _, matched)| matched.contains(pii_text));
-            assert!(found, "Failed to find '{}' in detection results for {}", pii_text, expected_type);
+            let found = results
+                .iter()
+                .any(|(_, _, matched)| matched.contains(pii_text));
+            assert!(
+                found,
+                "Failed to find '{}' in detection results for {}",
+                pii_text, expected_type
+            );
 
             // Test cleaning
             let cleaned = clean_pii_core(&text, "redact");
-            assert!(!cleaned.contains(pii_text), "Failed to clean '{}' from text", pii_text);
+            assert!(
+                !cleaned.contains(pii_text),
+                "Failed to clean '{}' from text",
+                pii_text
+            );
 
             let replaced = clean_pii_core(&text, "replace");
-            assert_eq!(replaced, "[PII detected, comment redacted]", "Replace mode failed for {}", expected_type);
+            assert_eq!(
+                replaced, "[PII detected, comment redacted]",
+                "Replace mode failed for {}",
+                expected_type
+            );
         }
     }
 
@@ -418,31 +432,37 @@ mod tests {
         // Test that pre-compiled patterns are actually being used
         // This should be very fast compared to compiling patterns each time
         let text = "Email: test@example.com";
-        
+
         let start = std::time::Instant::now();
         for _ in 0..1000 {
             let _ = detect_pii_core(text);
         }
         let duration = start.elapsed();
-        
+
         // Should complete 1000 detections in reasonable time (< 100ms)
-        assert!(duration.as_millis() < 100, "Performance regression: took {:?} for 1000 detections", duration);
+        assert!(
+            duration.as_millis() < 100,
+            "Performance regression: took {:?} for 1000 detections",
+            duration
+        );
     }
 
     #[test]
     fn test_concurrent_access() {
         use std::thread;
-        
+
         // Test that static patterns can be accessed concurrently
-        let handles: Vec<_> = (0..4).map(|i| {
-            thread::spawn(move || {
-                let text = format!("Email: test{}@example.com", i);
-                for _ in 0..100 {
-                    let results = detect_pii_core(&text);
-                    assert!(results.len() >= 1);
-                }
+        let handles: Vec<_> = (0..4)
+            .map(|i| {
+                thread::spawn(move || {
+                    let text = format!("Email: test{}@example.com", i);
+                    for _ in 0..100 {
+                        let results = detect_pii_core(&text);
+                        assert!(results.len() >= 1);
+                    }
+                })
             })
-        }).collect();
+            .collect();
 
         for handle in handles {
             handle.join().unwrap();
@@ -463,7 +483,7 @@ mod tests {
         // Ensure all patterns compile successfully
         let patterns = patterns::get_all_patterns();
         assert!(patterns.len() > 0);
-        
+
         for pattern in patterns {
             let regex_result = regex::Regex::new(pattern);
             assert!(regex_result.is_ok(), "Invalid regex pattern: {}", pattern);

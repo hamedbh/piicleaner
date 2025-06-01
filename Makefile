@@ -12,27 +12,14 @@ check:  ## Check Rust code
 build:  ## Build release version
 	uv run maturin build --release
 
-test-all: test test-full test-api test-comprehensive
-
-test:  ## Run quick test
-	uv run python -c "from piicleaner import Cleaner; c = Cleaner(); print('✓ Import successful')"
-
-test-full:  ## Run comprehensive test
-	uv run python -c "from piicleaner import Cleaner; c = Cleaner(); text = 'Email john@test.com or call 555-123-4567'; print('Detected:', len(c.detect_pii(text)), 'items'); print('✓ Full test passed')"
-
-test-api:  ## Test the main API functionality
-	uv run python -c "from piicleaner import Cleaner; c = Cleaner(); text = 'Email john@test.com'; result = c.clean_list([text, 'No PII here'], 'redact'); print('✓ API test passed:', len([x for x in result if 'john@test.com' not in x]) == 2)"
-
-test-comprehensive:  ## Test all functionality
-	uv run python -c "from piicleaner import Cleaner; print('✓ Cleaners:', len(Cleaner.get_available_cleaners())); c = Cleaner(); print('✓ Detection works:', len(c.detect_pii('NINO AB123456C costs £100')) >= 2); print('✓ Cleaning works:', 'AB123456C' not in c.clean_pii('NINO AB123456C', 'redact'))"
+test:
+	cargo test
+	uv run pytest -v
 
 clean:  ## Clean build artifacts
 	cargo clean
 	find . -name "*.so" -delete
 	find . -name "__pycache__" -delete
-
-install:  ## Install package
-	uv sync
 
 format:  ## Format code (when we add it later)
 	cargo fmt

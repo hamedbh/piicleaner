@@ -56,7 +56,10 @@ pub fn detect_pii_with_cleaners_batch(
     cleaners: Vec<String>,
 ) -> PyResult<Vec<Vec<(usize, usize, String)>>> {
     let cleaner_refs: Vec<&str> = cleaners.iter().map(|s| s.as_str()).collect();
-    Ok(core::detect_pii_with_cleaners_batch_core(&texts, &cleaner_refs))
+    Ok(core::detect_pii_with_cleaners_batch_core(
+        &texts,
+        &cleaner_refs,
+    ))
 }
 
 /// Vectorized clean PII with specific cleaners for multiple texts
@@ -67,9 +70,12 @@ pub fn clean_pii_with_cleaners_batch(
     cleaning: &str,
 ) -> PyResult<Vec<String>> {
     let cleaner_refs: Vec<&str> = cleaners.iter().map(|s| s.as_str()).collect();
-    Ok(core::clean_pii_with_cleaners_batch_core(&texts, &cleaner_refs, cleaning))
+    Ok(core::clean_pii_with_cleaners_batch_core(
+        &texts,
+        &cleaner_refs,
+        cleaning,
+    ))
 }
-
 
 #[pymodule]
 fn _internal(_py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
