@@ -8,11 +8,35 @@ requires-python = ">=3.8"
 dependencies = ["polars>=0.20.0"]
 dynamic = ["version"]
 
-[tool.maturin]
-python-source = "python"
-module-name = "piicleaner._internal"
-
 [dependency-groups]
 dev = [
     "maturin[patchelf]>=1.8.6",
 ]
+
+[tool.maturin]
+python-source = "python"
+module-name = "piicleaner._internal"
+
+[tool.ruff]
+line-length = 79
+indent-width = 4
+
+[tool.ruff.lint]
+# The default set of rules is "E4", "E7", "E9", "F"
+select = [
+    "E",
+    "W",
+    "F",
+    "I",
+    "B",
+    "C4",
+    "UP",
+]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+docstring-code-format = true
+docstring-code-line-length = "dynamic"

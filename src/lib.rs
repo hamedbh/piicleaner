@@ -60,10 +60,36 @@ fn clean_pii(text: &str, cleaning: &str) -> PyResult<String> {
     }
 }
 
+/// Detect PII with specific cleaners
+#[pyfunction]
+fn detect_pii_with_cleaners(text: &str, cleaners: Vec<String>) -> PyResult<Vec<(usize, usize, String)>> {
+    let cleaner_refs: Vec<&str> = cleaners.iter().map(|s| s.as_str()).collect();
+    let patterns = if cleaners.len() == 1 && cleaners[0] == "all" {
+        patterns::get_all_patterns()
+    } else {
+        patterns::get_patterns_by_name(&cleaner_refs)
+    };
+    
+    let mut all_matches = Vec::new();
+    
+    for pattern in patterns {
+        let re = regex::Regex::new(pattern).unwrap();
+        let matches: Vec<(usize, usize, String)> = re
+            .find_iter(text)
+            .map(|m| (m.start(), m.end(), m.as_str().to_string()))
+            .collect();
+        all_matches.extend(matches);
+    }
+    
+    all_matches.sort_by_key(|&(start, _, _)| start);
+    Ok(all_matches)
+}
+
 /// A Python module implemented in Rust.
 #[pymodule]
 fn _internal(_py: Python, _m: &Bound<'_, PyModule>) -> PyResult<()> {
     _m.add_function(wrap_pyfunction!(detect_pii, _m)?)?;
     _m.add_function(wrap_pyfunction!(clean_pii, _m)?)?;
+    _m.add_function(wrap_pyfunction!(detect_pii_with_cleaners, _m)?)?;
     Ok(())
 }
