@@ -2,10 +2,14 @@
 
 from piicleaner._internal import clean_pii as rust_clean_pii
 from piicleaner._internal import detect_pii as rust_detect_pii
-from piicleaner._internal import detect_pii_with_cleaners
+from piicleaner._internal import (
+    detect_pii_with_cleaners,
+    get_available_cleaners,
+)
+from piicleaner._polars import PolarsCleanerMixin
 
 
-class Cleaner:
+class Cleaner(PolarsCleanerMixin):
     """A Cleaner object contains methods to clean Personal
     Identifiable Information (PII) from text data using regex patterns.
 
@@ -45,6 +49,7 @@ class Cleaner:
     def clean_pii(self, string, cleaning, ignore_case=True):
         """Clean PII from a string"""
         # For now, we'll use the all-patterns version
+        # TODO: add cleaner-specific cleaning
         return rust_clean_pii(string, cleaning)
 
     def clean_list(self, string_list, cleaning, ignore_case=True):
@@ -65,6 +70,4 @@ class Cleaner:
     @staticmethod
     def get_available_cleaners():
         """Get list of available cleaner names"""
-        from piicleaner._internal import get_available_cleaners
-
         return sorted(get_available_cleaners())
