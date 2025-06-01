@@ -61,3 +61,10 @@ class Cleaner:
             raise TypeError("All values in list must be `str`.")
 
         return [self.clean_pii(x, cleaning, ignore_case) for x in string_list]
+
+    @staticmethod
+    def get_available_cleaners():
+        """Get list of available cleaner names"""
+        from piicleaner._internal import get_available_cleaners
+
+        return sorted(get_available_cleaners())

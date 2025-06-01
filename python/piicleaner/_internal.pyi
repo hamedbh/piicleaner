@@ -13,3 +13,7 @@ def detect_pii_with_cleaners(
 ) -> list[tuple[int, int, str]]:
     """Detect PII with specific cleaners"""
     ...
+
+def get_available_cleaners() -> list[str]:
+    """Get list of available cleaner names"""
+    ...

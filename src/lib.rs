@@ -85,11 +85,23 @@ fn detect_pii_with_cleaners(text: &str, cleaners: Vec<String>) -> PyResult<Vec<(
     Ok(all_matches)
 }
 
+/// Get list of available cleaner names
+#[pyfunction]
+fn get_available_cleaners() -> PyResult<Vec<String>> {
+    let registry = patterns::get_registry();
+    let cleaners: Vec<String> = registry.get_available_cleaners()
+        .iter()
+        .map(|&s| s.to_string())
+        .collect();
+    Ok(cleaners)
+}
+
 /// A Python module implemented in Rust.
 #[pymodule]
 fn _internal(_py: Python, _m: &Bound<'_, PyModule>) -> PyResult<()> {
     _m.add_function(wrap_pyfunction!(detect_pii, _m)?)?;
     _m.add_function(wrap_pyfunction!(clean_pii, _m)?)?;
     _m.add_function(wrap_pyfunction!(detect_pii_with_cleaners, _m)?)?;
+    _m.add_function(wrap_pyfunction!(get_available_cleaners, _m)?)?;
     Ok(())
 }

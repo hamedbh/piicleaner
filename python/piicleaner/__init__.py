@@ -9,7 +9,14 @@ from piicleaner._internal import (
     clean_pii,
     detect_pii,
     detect_pii_with_cleaners,
+    get_available_cleaners,
 )
 
 # Make everything available at the top level
-__all__ = ["detect_pii", "clean_pii", "detect_pii_with_cleaners", "Cleaner"]
+__all__ = [
+    "detect_pii",
+    "clean_pii",
+    "detect_pii_with_cleaners",
+    "get_available_cleaners",
+    "Cleaner",
+]
