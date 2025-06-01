@@ -1,28 +1,34 @@
-"""PII Cleaner - A fast library for detecting and cleaning personally identifiable information"""
+"""
+PIICleaner - Personal Identifiable Information detection and cleaning for text
+data.
 
-# Import the Rust functions (keep these available)
-# Import the main Cleaner class
-from piicleaner._cleaner import Cleaner
-from piicleaner._internal import (
+This package provides functionality to detect and clean PII from text data,
+with support for various types of sensitive information like National Insurance
+numbers, email addresses, phone numbers, and more.
+"""
+
+# Import the Rust functions
+from ._internal import (
     clean_pii,
     detect_pii,
     detect_pii_with_cleaners,
     get_available_cleaners,
 )
 
-# Import and register Polars namespace - do this last
+# Import Polars integration
 try:
-    import piicleaner._polars_plugin
+    import polars as pl
+
+    from . import _polars_plugin
 
     print("Polars plugin imported successfully")
-except ImportError as e:
-    print(f"Polars plugin import failed: {e}")
+except ImportError:
+    print("Polars not available - skipping plugin registration")
 
-# Make everything available at the top level
+__version__ = "0.1.0"
 __all__ = [
     "detect_pii",
     "clean_pii",
     "detect_pii_with_cleaners",
     "get_available_cleaners",
-    "Cleaner",
 ]

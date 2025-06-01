@@ -1,75 +1,75 @@
-"""Polars plugin registration for PII cleaning"""
+import polars as pl
+from polars import Expr
+import piicleaner
 
-try:
-    import polars as pl
-    from polars.type_aliases import IntoExpr
 
-    POLARS_AVAILABLE = True
+@pl.api.register_expr_namespace("pii")
+class PIIExprNamespace:
+    """PII operations for Polars expressions."""
 
-    # Direct namespace registration approach
-    @pl.api.register_expr_namespace("pii")
-    class PIINamespace:
-        """PII cleaning namespace for Polars expressions."""
+    def __init__(self, expr: Expr):
+        self._expr = expr
 
-        def __init__(self, expr: pl.Expr):
-            self._expr = expr
+    def detect_pii(self) -> Expr:
+        """Detect PII in text and return matches as list of structs."""
 
-        def clean(self, method: str = "redact") -> pl.Expr:
-            """Clean PII from the expression.
+        def _convert_matches(text_val):
+            if text_val is None:
+                return []
+            matches = piicleaner.detect_pii(text_val)
+            # Convert tuples to dictionaries for Polars struct format
+            return [
+                {"start": start, "end": end, "text": text}
+                for start, end, text in matches
+            ]
 
-            Parameters
-            ----------
-            method : str, default "redact"
-                Cleaning method: "redact" or "replace"
+        return self._expr.map_elements(
+            _convert_matches,
+            return_dtype=pl.List(
+                pl.Struct(
+                    [
+                        pl.Field("start", pl.UInt32),
+                        pl.Field("end", pl.UInt32),
+                        pl.Field("text", pl.String),
+                    ]
+                )
+            ),
+        )
 
-            Returns
-            -------
-            pl.Expr
-                Expression with PII cleaned
-            """
+    def clean_pii(self, method: str = "redact") -> Expr:
+        """Clean PII from text."""
 
-            def _clean_text(text: str) -> str:
-                from piicleaner._internal import clean_pii
+        def _clean_text(text_val):
+            if text_val is None:
+                return None
+            return piicleaner.clean_pii(text_val, method)
 
-                return clean_pii(text, method)
+        return self._expr.map_elements(_clean_text, return_dtype=pl.String)
 
-            return self._expr.map_elements(_clean_text, return_dtype=pl.String)
+    def detect_pii_with_cleaners(self, cleaners: list[str]) -> Expr:
+        """Detect PII using specific cleaners."""
 
-        def detect(self) -> pl.Expr:
-            """Detect PII in the expression, returning a list of matches.
+        def _convert_matches_with_cleaners(text_val):
+            if text_val is None:
+                return []
+            matches = piicleaner.detect_pii_with_cleaners(text_val, cleaners)
+            return [
+                {"start": start, "end": end, "text": text}
+                for start, end, text in matches
+            ]
 
-            Returns
-            -------
-            pl.Expr
-                Expression returning list of PII matches
-            """
+        return self._expr.map_elements(
+            _convert_matches_with_cleaners,
+            return_dtype=pl.List(
+                pl.Struct(
+                    [
+                        pl.Field("start", pl.UInt32),
+                        pl.Field("end", pl.UInt32),
+                        pl.Field("text", pl.String),
+                    ]
+                )
+            ),
+        )
 
-            def _detect_pii(text: str) -> list:
-                from piicleaner._internal import detect_pii
 
-                matches = detect_pii(text)
-                # Convert to list of dicts for Polars
-                return [
-                    {"start": start, "end": end, "text": text}
-                    for start, end, text in matches
-                ]
-
-            return self._expr.map_elements(
-                _detect_pii,
-                return_dtype=pl.List(
-                    pl.Struct(
-                        [
-                            pl.Field("start", pl.Int64),
-                            pl.Field("end", pl.Int64),
-                            pl.Field("text", pl.String),
-                        ]
-                    )
-                ),
-            )
-
-    # Print debug info
-    print(f"PIINamespace registered successfully: {PIINamespace}")
-
-except ImportError as e:
-    print(f"Polars not available: {e}")
-    POLARS_AVAILABLE = False
+print("PIIExprNamespace registered successfully")
