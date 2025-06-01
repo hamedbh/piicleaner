@@ -17,3 +17,23 @@ def detect_pii_with_cleaners(
 def get_available_cleaners() -> list[str]:
     """Get list of available cleaner names"""
     ...
+
+def detect_pii_batch(texts: list[str]) -> list[list[tuple[int, int, str]]]:
+    """Vectorized detect PII for multiple texts"""
+    ...
+
+def clean_pii_batch(texts: list[str], cleaning: str) -> list[str]:
+    """Vectorized clean PII for multiple texts"""
+    ...
+
+def detect_pii_with_cleaners_batch(
+    texts: list[str], cleaners: list[str]
+) -> list[list[tuple[int, int, str]]]:
+    """Vectorized detect PII with specific cleaners for multiple texts"""
+    ...
+
+def clean_pii_with_cleaners_batch(
+    texts: list[str], cleaners: list[str], cleaning: str
+) -> list[str]:
+    """Vectorized clean PII with specific cleaners for multiple texts"""
+    ...

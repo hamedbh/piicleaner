@@ -58,13 +58,16 @@ class Cleaner(PolarsCleanerMixin):
             matches = self.detect_pii(string)
             if not matches:
                 return string
-            
+
             if cleaning == "replace":
                 return "[PII detected, comment redacted]"
             else:  # redact
                 result = string
-                # Sort matches by start position in reverse to avoid index shifting
-                sorted_matches = sorted(matches, key=lambda x: x["start"], reverse=True)
+                # Sort matches by start position in reverse to avoid index
+                # shifting
+                sorted_matches = sorted(
+                    matches, key=lambda x: x["start"], reverse=True
+                )
                 for match in sorted_matches:
                     start, end = match["start"], match["end"]
                     replacement = "-" * (end - start)
@@ -87,11 +90,15 @@ class Cleaner(PolarsCleanerMixin):
         # Use vectorized function for better performance
         if self.cleaners == "all":
             from piicleaner._internal import clean_pii_batch
+
             return clean_pii_batch(string_list, cleaning)
         else:
             # Use vectorized function for specific cleaners too
             from piicleaner._internal import clean_pii_with_cleaners_batch
-            return clean_pii_with_cleaners_batch(string_list, self.cleaners, cleaning)
+
+            return clean_pii_with_cleaners_batch(
+                string_list, self.cleaners, cleaning
+            )
 
     @staticmethod
     def get_available_cleaners():

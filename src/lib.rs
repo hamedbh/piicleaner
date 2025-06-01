@@ -70,11 +70,6 @@ pub fn clean_pii_with_cleaners_batch(
     Ok(core::clean_pii_with_cleaners_batch_core(&texts, &cleaner_refs, cleaning))
 }
 
-/// Test function to compare cleaning approaches
-#[pyfunction]
-pub fn test_cleaning_equivalence() -> PyResult<Vec<(String, bool, bool)>> {
-    Ok(core::test_cleaning_equivalence())
-}
 
 #[pymodule]
 fn _internal(_py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
@@ -86,6 +81,5 @@ fn _internal(_py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(clean_pii_batch, m)?)?;
     m.add_function(wrap_pyfunction!(detect_pii_with_cleaners_batch, m)?)?;
     m.add_function(wrap_pyfunction!(clean_pii_with_cleaners_batch, m)?)?;
-    m.add_function(wrap_pyfunction!(test_cleaning_equivalence, m)?)?;
     Ok(())
 }

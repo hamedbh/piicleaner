@@ -1,10 +1,10 @@
-use piicleaner::patterns::{get_registry, get_all_patterns, get_patterns_by_name};
+use piicleaner::patterns::{get_all_patterns, get_patterns_by_name, get_registry};
 
 #[test]
 fn test_pattern_registry_creation() {
     let registry = get_registry();
     let cleaners = registry.get_available_cleaners();
-    
+
     assert!(!cleaners.is_empty());
     assert!(cleaners.contains(&"email"));
     assert!(cleaners.contains(&"nino"));
@@ -21,7 +21,7 @@ fn test_pattern_registry_creation() {
 fn test_get_all_patterns() {
     let patterns = get_all_patterns();
     assert!(!patterns.is_empty());
-    
+
     // Should have multiple patterns (email has 2, case-id has 5, etc.)
     assert!(patterns.len() >= 10);
 }
@@ -30,10 +30,10 @@ fn test_get_all_patterns() {
 fn test_get_patterns_by_name_single() {
     let email_patterns = get_patterns_by_name(&["email"]);
     assert_eq!(email_patterns.len(), 2); // email has 2 patterns
-    
+
     let nino_patterns = get_patterns_by_name(&["nino"]);
     assert_eq!(nino_patterns.len(), 1); // nino has 1 pattern
-    
+
     let case_id_patterns = get_patterns_by_name(&["case-id"]);
     assert_eq!(case_id_patterns.len(), 5); // case-id has 5 patterns
 }
@@ -42,7 +42,7 @@ fn test_get_patterns_by_name_single() {
 fn test_get_patterns_by_name_multiple() {
     let patterns = get_patterns_by_name(&["email", "nino"]);
     assert_eq!(patterns.len(), 3); // email(2) + nino(1)
-    
+
     let patterns = get_patterns_by_name(&["postcode", "telephone"]);
     assert_eq!(patterns.len(), 2); // postcode(1) + telephone(1)
 }
@@ -51,7 +51,7 @@ fn test_get_patterns_by_name_multiple() {
 fn test_get_patterns_by_name_nonexistent() {
     let patterns = get_patterns_by_name(&["nonexistent"]);
     assert_eq!(patterns.len(), 0);
-    
+
     let patterns = get_patterns_by_name(&["email", "nonexistent", "nino"]);
     assert_eq!(patterns.len(), 3); // Only email(2) + nino(1), nonexistent ignored
 }
@@ -65,7 +65,7 @@ fn test_get_patterns_by_name_empty() {
 #[test]
 fn test_pattern_compilation() {
     let patterns = get_all_patterns();
-    
+
     // Test that all patterns can be compiled as valid regex
     for pattern in patterns {
         let result = regex::Regex::new(pattern);
@@ -76,7 +76,7 @@ fn test_pattern_compilation() {
 #[test]
 fn test_email_pattern_matching() {
     let email_patterns = get_patterns_by_name(&["email"]);
-    
+
     let test_cases = vec![
         ("test@example.com", true),
         ("user.name@domain.co.uk", true),
@@ -84,7 +84,7 @@ fn test_email_pattern_matching() {
         ("@domain.com", false),
         ("user@", false),
     ];
-    
+
     for (email, should_match) in test_cases {
         let mut found_match = false;
         for pattern in &email_patterns {
@@ -94,7 +94,11 @@ fn test_email_pattern_matching() {
                 break;
             }
         }
-        assert_eq!(found_match, should_match, "Email '{}' match result incorrect", email);
+        assert_eq!(
+            found_match, should_match,
+            "Email '{}' match result incorrect",
+            email
+        );
     }
 }
 
@@ -102,7 +106,7 @@ fn test_email_pattern_matching() {
 fn test_nino_pattern_matching() {
     let nino_patterns = get_patterns_by_name(&["nino"]);
     let re = regex::Regex::new(nino_patterns[0]).unwrap();
-    
+
     let test_cases = vec![
         ("AB123456C", true),
         ("AB 12 34 56 C", true),
@@ -111,10 +115,14 @@ fn test_nino_pattern_matching() {
         ("AB123456", true),   // Valid without suffix (pattern allows optional suffix)
         ("123456789", false), // Not a NINO
     ];
-    
+
     for (nino, should_match) in test_cases {
         let matches = re.is_match(nino);
-        assert_eq!(matches, should_match, "NINO '{}' match result incorrect", nino);
+        assert_eq!(
+            matches, should_match,
+            "NINO '{}' match result incorrect",
+            nino
+        );
     }
 }
 
@@ -122,7 +130,7 @@ fn test_nino_pattern_matching() {
 fn test_postcode_pattern_matching() {
     let postcode_patterns = get_patterns_by_name(&["postcode"]);
     let re = regex::Regex::new(postcode_patterns[0]).unwrap();
-    
+
     let test_cases = vec![
         ("SW1A 1AA", true),
         ("M1 1AA", true),
@@ -131,10 +139,14 @@ fn test_postcode_pattern_matching() {
         ("INVALID", false),
         ("12345", false),
     ];
-    
+
     for (postcode, should_match) in test_cases {
         let matches = re.is_match(postcode);
-        assert_eq!(matches, should_match, "Postcode '{}' match result incorrect", postcode);
+        assert_eq!(
+            matches, should_match,
+            "Postcode '{}' match result incorrect",
+            postcode
+        );
     }
 }
 
@@ -142,7 +154,7 @@ fn test_postcode_pattern_matching() {
 fn test_telephone_pattern_matching() {
     let telephone_patterns = get_patterns_by_name(&["telephone"]);
     let re = regex::Regex::new(telephone_patterns[0]).unwrap();
-    
+
     let test_cases = vec![
         ("01234 567890", true),
         ("0123 456 7890", true),
@@ -151,17 +163,21 @@ fn test_telephone_pattern_matching() {
         ("123", false), // Too short
         ("abc", false), // Not numeric
     ];
-    
+
     for (phone, should_match) in test_cases {
         let matches = re.is_match(phone);
-        assert_eq!(matches, should_match, "Phone '{}' match result incorrect", phone);
+        assert_eq!(
+            matches, should_match,
+            "Phone '{}' match result incorrect",
+            phone
+        );
     }
 }
 
 #[test]
 fn test_cash_amount_pattern_matching() {
     let cash_patterns = get_patterns_by_name(&["cash-amount"]);
-    
+
     let test_cases = vec![
         ("£100", true),
         ("$1,500.50", true),
@@ -171,7 +187,7 @@ fn test_cash_amount_pattern_matching() {
         ("£5", false), // Too short (less than 2 digits)
         ("money", false),
     ];
-    
+
     for (amount, should_match) in test_cases {
         let mut found_match = false;
         for pattern in &cash_patterns {
@@ -181,7 +197,11 @@ fn test_cash_amount_pattern_matching() {
                 break;
             }
         }
-        assert_eq!(found_match, should_match, "Amount '{}' match result incorrect", amount);
+        assert_eq!(
+            found_match, should_match,
+            "Amount '{}' match result incorrect",
+            amount
+        );
     }
 }
 
@@ -189,7 +209,7 @@ fn test_cash_amount_pattern_matching() {
 fn test_ip_address_pattern_matching() {
     let ip_patterns = get_patterns_by_name(&["ip_address"]);
     let re = regex::Regex::new(ip_patterns[0]).unwrap();
-    
+
     let test_cases = vec![
         ("192.168.1.1", true),
         ("10.0.0.1", true),
@@ -199,7 +219,7 @@ fn test_ip_address_pattern_matching() {
         ("192.168.1", false), // Incomplete
         ("not.an.ip.address", false),
     ];
-    
+
     for (ip, should_match) in test_cases {
         let matches = re.is_match(ip);
         assert_eq!(matches, should_match, "IP '{}' match result incorrect", ip);

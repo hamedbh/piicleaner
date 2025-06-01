@@ -208,46 +208,6 @@ fn clean_pii_with_specific_patterns_core(
     }
 }
 
-/// Function to test behavioral equivalence of both cleaning approaches
-pub fn test_cleaning_equivalence() -> Vec<(String, bool, bool)> {
-    let test_cases = vec![
-        "No PII here at all",
-        "Email: test@example.com",
-        "NINO: AB123456C",
-        "Phone: +44 20 1234 5678",
-        "Multiple: test@example.com and AB123456C",
-        "Empty string: ",
-        "Just symbols: !@#$%^&*()",
-        "Numbers: 123456789",
-        "Mixed: Contact test@example.com for NINO AB123456C info",
-    ];
-
-    let mut results = Vec::new();
-    
-    for test_case in test_cases {
-        for cleaning_method in ["replace", "redact"] {
-            let result1 = clean_pii_core(test_case, cleaning_method);
-            let result2 = clean_pii_core_regexset(test_case, cleaning_method);
-            let identical = result1 == result2;
-            
-            if !identical {
-                println!("DIFFERENCE FOUND:");
-                println!("  Input: '{}'", test_case);
-                println!("  Method: {}", cleaning_method);
-                println!("  Original: '{}'", result1);
-                println!("  RegexSet: '{}'", result2);
-            }
-            
-            results.push((
-                format!("{} [{}]", test_case, cleaning_method),
-                result1 == test_case, // unchanged
-                identical
-            ));
-        }
-    }
-    
-    results
-}
 
 #[cfg(test)]
 mod tests {

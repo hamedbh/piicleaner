@@ -19,7 +19,8 @@ class PolarsCleanerMixin:
         :param df: Polars DataFrame
         :param column_name: Name of the column to clean
         :param cleaning: Cleaning method ("redact" or "replace")
-        :param new_column_name: Name for the new cleaned column. If None, overwrites original
+        :param new_column_name: Name for the new cleaned column. If
+            None, overwrites original
         :return: DataFrame with cleaned column
         """
         if not POLARS_AVAILABLE:
