@@ -1,0 +1,16 @@
+# Rust build artifacts
+/target/
+
+# Python build artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.pyd
+
+# Virtual environments
+.venv/
+venv/
+
+# Maturin build
+*.whl

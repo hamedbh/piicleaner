@@ -1,0 +1,18 @@
+[build-system]
+requires = ["maturin>=1.0,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "piicleaner"
+requires-python = ">=3.8"
+dependencies = ["polars>=0.20.0"]
+dynamic = ["version"]
+
+[tool.maturin]
+python-source = "python"
+module-name = "piicleaner._internal"
+
+[dependency-groups]
+dev = [
+    "maturin[patchelf]>=1.8.6",
+]
