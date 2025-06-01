@@ -267,7 +267,6 @@ class TestPolarsEdgeCases:
 
     def test_multiple_columns_cleaning(self):
         """Test cleaning multiple columns."""
-        cleaner = Cleaner()
         df = pl.DataFrame(
             {
                 "emails": ["Contact alice@test.com", "No email here"],

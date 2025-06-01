@@ -5,7 +5,7 @@ build-backend = "maturin"
 [project]
 name = "piicleaner"
 description = "Fast PII detection and cleaning for text data with Polars integration"
-authors = [{name = "Hamed Bastan-Hagh", email = "hamed@example.com"}]
+authors = [{name = "Hamed Bastan-Hagh", email = "hamed@bastanhagh.com"}]
 license = {text = "MIT"}
 readme = "README.md"
 requires-python = ">=3.9"

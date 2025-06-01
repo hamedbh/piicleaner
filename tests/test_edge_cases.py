@@ -162,8 +162,11 @@ class TestMalformedAndIncompleteData:
 
         for email in incomplete_emails:
             matches = cleaner.detect_pii(email)
-            # Most should not be detected as valid emails
-            # (though some patterns might still match parts)
+            # Most incomplete emails should not be detected as valid emails
+            # We expect few or no matches for malformed email addresses
+            assert len(matches) <= 1, (
+                f"Too many matches for malformed email '{email}': {matches}"
+            )
 
     def test_incomplete_phone_numbers(self, cleaner):
         """Test with incomplete phone numbers."""
@@ -177,7 +180,10 @@ class TestMalformedAndIncompleteData:
 
         for phone in incomplete_phones:
             matches = cleaner.detect_pii(phone)
-            # Most should not be detected as valid phones
+            # Incomplete phone numbers should not be detected as valid phones
+            assert len(matches) == 0, (
+                f"Unexpected matches for incomplete phone '{phone}': {matches}"
+            )
 
     def test_incomplete_postcodes(self, cleaner):
         """Test with incomplete UK postcodes."""
@@ -191,7 +197,11 @@ class TestMalformedAndIncompleteData:
 
         for postcode in incomplete_postcodes:
             matches = cleaner.detect_pii(postcode)
-            # Most should not be detected as valid postcodes
+            # Incomplete postcodes should not be detected as valid postcodes
+            assert len(matches) == 0, (
+                f"Unexpected matches for incomplete postcode "
+                f"'{postcode}': {matches}"
+            )
 
     def test_almost_valid_ninos(self, cleaner):
         """Test with almost-valid National Insurance numbers."""
@@ -205,7 +215,11 @@ class TestMalformedAndIncompleteData:
 
         for nino in almost_ninos:
             matches = cleaner.detect_pii(nino)
-            # Some might still match due to overlapping patterns
+            # Almost-valid NINOs should generally not be detected as valid
+            # Allow some flexibility as case-id patterns might still match
+            assert len(matches) <= 2, (
+                f"Too many matches for almost-NINO '{nino}': {matches}"
+            )
 
 
 class TestOverlappingPatterns:
@@ -236,7 +250,7 @@ class TestOverlappingPatterns:
         assert len(matches) >= 0  # Could be 0 or more depending on patterns
 
     def test_email_with_numbers(self, cleaner):
-        """Test email addresses containing numbers that might trigger other patterns."""
+        """Test email addresses with numbers that might trigger patterns."""
         email_with_numbers = "user123456@domain123.com"
         matches = cleaner.detect_pii(email_with_numbers)
 
@@ -246,7 +260,10 @@ class TestOverlappingPatterns:
 
     def test_mixed_pii_in_single_string(self, cleaner):
         """Test string containing multiple types of PII close together."""
-        mixed_pii = "Contact john@test.com or call +44 20 1234 5678 ref AB123456C at SW1A 1AA"
+        mixed_pii = (
+            "Contact john@test.com or call +44 20 1234 5678 ref "
+            "AB123456C at SW1A 1AA"
+        )
         matches = cleaner.detect_pii(mixed_pii)
 
         # Should detect multiple types
@@ -340,11 +357,11 @@ class TestErrorHandling:
         """Test behavior with None inputs."""
         cleaner = Cleaner()
 
-        # These should raise TypeError
-        with pytest.raises(Exception):  # Could be TypeError or other
+        # These should raise TypeError for None inputs
+        with pytest.raises(TypeError):
             cleaner.detect_pii(None)
 
-        with pytest.raises(Exception):
+        with pytest.raises(TypeError):
             cleaner.clean_pii(None, "redact")
 
     def test_non_string_inputs(self):
@@ -353,10 +370,10 @@ class TestErrorHandling:
         non_strings = [123, [], {}, True, 3.14]
 
         for non_string in non_strings:
-            with pytest.raises(Exception):
+            with pytest.raises(TypeError):
                 cleaner.detect_pii(non_string)
 
-            with pytest.raises(Exception):
+            with pytest.raises(TypeError):
                 cleaner.clean_pii(non_string, "redact")
 
 
@@ -373,7 +390,7 @@ class TestPerformanceEdgeCases:
         many_emails = " ".join([f"user{i}@test.com" for i in range(100)])
 
         matches = cleaner.detect_pii(many_emails)
-        # Should detect all emails (allowing for duplicates from multiple patterns)
+        # Should detect all emails (duplicates from multiple patterns allowed)
         assert len(matches) >= 100
 
     def test_repeated_pattern_text(self, cleaner):
@@ -401,7 +418,7 @@ class TestPerformanceEdgeCases:
         assert "Text 99" in cleaned
 
     def test_large_dataframe_performance(self, cleaner):
-        """Test performance with larger DataFrames to ensure vectorization works."""
+        """Test performance with larger DataFrames to ensure vectorization."""
         try:
             import time
 
@@ -410,7 +427,8 @@ class TestPerformanceEdgeCases:
             pytest.skip("Polars not available for DataFrame performance test")
 
         # Create a reasonably large DataFrame for performance testing
-        # Size chosen to complete in reasonable test time while demonstrating vectorization
+        # Size chosen to complete in reasonable test time while demonstrating
+        # vectorization performance improvements
         size = 1000
         test_data = [
             f"Email: user{i}@example.com for support" for i in range(size // 2)
@@ -442,10 +460,12 @@ class TestPerformanceEdgeCases:
         detect_performance = size / detect_time
 
         assert clean_performance >= min_performance, (
-            f"Cleaning performance too slow: {clean_performance:.0f} rows/sec (expected ≥{min_performance})"
+            f"Cleaning performance too slow: {clean_performance:.0f} rows/sec "
+            f"(expected ≥{min_performance})"
         )
         assert detect_performance >= min_performance, (
-            f"Detection performance too slow: {detect_performance:.0f} rows/sec (expected ≥{min_performance})"
+            f"Detection performance too slow: {detect_performance:.0f} "
+            f"rows/sec (expected ≥{min_performance})"
         )
 
         # Verify correctness
@@ -471,7 +491,7 @@ class TestPerformanceEdgeCases:
         )
 
     def test_batch_function_performance(self, cleaner):
-        """Test that batch functions significantly outperform individual calls."""
+        """Test that batch functions outperform individual calls."""
         import time
 
         # Create test data
@@ -495,11 +515,13 @@ class TestPerformanceEdgeCases:
         # Batch should be significantly faster (at least 2x)
         speedup = individual_time / batch_time
         assert speedup >= 2.0, (
-            f"Batch processing not fast enough: {speedup:.1f}x speedup (expected ≥2x)"
+            f"Batch processing not fast enough: {speedup:.1f}x speedup "
+            f"(expected ≥2x)"
         )
 
         # Performance should be reasonable
         batch_performance = len(test_texts) / batch_time
         assert batch_performance >= 1000, (
-            f"Batch performance too slow: {batch_performance:.0f} texts/sec (expected ≥1000)"
+            f"Batch performance too slow: {batch_performance:.0f} texts/sec "
+            f"(expected ≥1000)"
         )

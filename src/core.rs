@@ -78,32 +78,6 @@ pub fn clean_pii_core(text: &str, cleaning: &str) -> String {
     }
 }
 
-/// Alternative optimized version using RegexSet for fast pre-filtering
-pub fn clean_pii_core_regexset(text: &str, cleaning: &str) -> String {
-    // Fast check: does this text match ANY pattern?
-    if !ALL_PATTERNS_SET.is_match(text) {
-        return text.to_string();
-    }
-
-    match cleaning {
-        "replace" => {
-            // Replace: if ANY PII found, replace entire text with message
-            "[PII detected, comment redacted]".to_string()
-        }
-        "redact" | _ => {
-            // Redact: replace each PII match with dashes, keep rest of text
-            let mut result = text.to_string();
-            for regex in ALL_PATTERNS_COMPILED.iter() {
-                result = regex
-                    .replace_all(&result, |caps: &regex::Captures| {
-                        "-".repeat(caps.get(0).unwrap().as_str().len())
-                    })
-                    .into_owned();
-            }
-            result
-        }
-    }
-}
 
 /// Core function to detect PII with specific cleaners
 pub fn detect_pii_with_cleaners_core(text: &str, cleaners: &[&str]) -> Vec<(usize, usize, String)> {
