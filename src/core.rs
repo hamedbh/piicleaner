@@ -155,6 +155,59 @@ pub fn detect_pii_with_cleaners_batch_core(
         .collect()
 }
 
+/// Vectorized function to clean PII with specific cleaners for multiple texts
+pub fn clean_pii_with_cleaners_batch_core(
+    texts: &[String],
+    cleaners: &[&str],
+    cleaning: &str,
+) -> Vec<String> {
+    // Pre-compile the specific patterns once for efficiency
+    let patterns = if cleaners.len() == 1 && cleaners[0] == "all" {
+        patterns::get_all_patterns()
+    } else {
+        patterns::get_patterns_by_name(cleaners)
+    };
+
+    let compiled_patterns: Vec<regex::Regex> = patterns
+        .into_iter()
+        .map(|pattern| regex::Regex::new(pattern).expect("Invalid regex pattern"))
+        .collect();
+
+    texts
+        .par_iter()
+        .map(|text| clean_pii_with_specific_patterns_core(text, &compiled_patterns, cleaning))
+        .collect()
+}
+
+/// Helper function to clean PII using pre-compiled patterns
+fn clean_pii_with_specific_patterns_core(
+    text: &str,
+    compiled_patterns: &[regex::Regex],
+    cleaning: &str,
+) -> String {
+    // Check if any pattern matches
+    let has_matches = compiled_patterns.iter().any(|regex| regex.is_match(text));
+    
+    if !has_matches {
+        return text.to_string();
+    }
+
+    match cleaning {
+        "replace" => "[PII detected, comment redacted]".to_string(),
+        "redact" | _ => {
+            let mut result = text.to_string();
+            for regex in compiled_patterns {
+                result = regex
+                    .replace_all(&result, |caps: &regex::Captures| {
+                        "-".repeat(caps.get(0).unwrap().as_str().len())
+                    })
+                    .into_owned();
+            }
+            result
+        }
+    }
+}
+
 /// Function to test behavioral equivalence of both cleaning approaches
 pub fn test_cleaning_equivalence() -> Vec<(String, bool, bool)> {
     let test_cases = vec![
@@ -361,6 +414,13 @@ mod tests {
         assert!(email_only[0].len() >= 1); // Should find email
         assert_eq!(email_only[1].len(), 0); // No PII
         assert_eq!(email_only[2].len(), 0); // Should not find NINO with email cleaner
+
+        // Test batch cleaning with specific cleaners
+        let email_cleaned = clean_pii_with_cleaners_batch_core(&texts, &["email"], "redact");
+        assert_eq!(email_cleaned.len(), 3);
+        assert!(!email_cleaned[0].contains("test1@example.com")); // Email should be cleaned
+        assert_eq!(email_cleaned[1], "No PII here"); // No change
+        assert_eq!(email_cleaned[2], "NINO: AB123456C"); // NINO should remain with email-only cleaner
     }
 
     #[test]

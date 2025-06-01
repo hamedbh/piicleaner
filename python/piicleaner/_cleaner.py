@@ -89,8 +89,9 @@ class Cleaner(PolarsCleanerMixin):
             from piicleaner._internal import clean_pii_batch
             return clean_pii_batch(string_list, cleaning)
         else:
-            # For specific cleaners, fall back to individual processing for now
-            return [self.clean_pii(text, cleaning, ignore_case) for text in string_list]
+            # Use vectorized function for specific cleaners too
+            from piicleaner._internal import clean_pii_with_cleaners_batch
+            return clean_pii_with_cleaners_batch(string_list, self.cleaners, cleaning)
 
     @staticmethod
     def get_available_cleaners():

@@ -12,6 +12,7 @@ from ._cleaner import Cleaner
 from ._internal import (
     clean_pii,
     clean_pii_batch,
+    clean_pii_with_cleaners_batch,
     detect_pii,
     detect_pii_batch,
     detect_pii_with_cleaners,
@@ -37,6 +38,7 @@ __all__ = [
     "detect_pii_batch",
     "clean_pii",
     "clean_pii_batch",
+    "clean_pii_with_cleaners_batch",
     "detect_pii_with_cleaners",
     "detect_pii_with_cleaners_batch",
     "get_available_cleaners",
