@@ -6,40 +6,57 @@ use pyo3::prelude::*;
 /// Detect PII in a string and return match information
 #[pyfunction]
 fn detect_pii(text: &str) -> PyResult<Vec<(usize, usize, String)>> {
-    // For now, let's just detect a simple email pattern
-    let email_pattern = r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b";
-    let re = regex::Regex::new(email_pattern).unwrap();
+    let patterns = patterns::get_all_patterns();
+    let mut all_matches = Vec::new();
 
-    let matches: Vec<(usize, usize, String)> = re
-        .find_iter(text)
-        .map(|m| (m.start(), m.end(), m.as_str().to_string()))
-        .collect();
+    for pattern in patterns {
+        let re = regex::Regex::new(pattern).unwrap();
+        let matches: Vec<(usize, usize, String)> = re
+            .find_iter(text)
+            .map(|m| (m.start(), m.end(), m.as_str().to_string()))
+            .collect();
+        all_matches.extend(matches);
+    }
 
-    Ok(matches)
+    // Sort by start position
+    all_matches.sort_by_key(|&(start, _, _)| start);
+    Ok(all_matches)
 }
 
 /// Clean PII from a string using the specified method
 #[pyfunction]
 fn clean_pii(text: &str, cleaning: &str) -> PyResult<String> {
-    let email_pattern = r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b";
-    let re = regex::Regex::new(email_pattern).unwrap();
-
-    if !re.is_match(text) {
-        // No PII found, return original text
+    let patterns = patterns::get_all_patterns();
+    let mut has_pii = false;
+    
+    // Check if any pattern matches
+    for pattern in &patterns {
+        let re = regex::Regex::new(pattern).unwrap();
+        if re.is_match(text) {
+            has_pii = true;
+            break;
+        }
+    }
+    
+    if !has_pii {
         return Ok(text.to_string());
     }
-
+    
     match cleaning {
         "replace" => Ok("[PII detected, comment redacted.]".to_string()),
         "redact" => {
-            let result = re.replace_all(text, |caps: &regex::Captures| {
-                "-".repeat(caps.get(0).unwrap().as_str().len())
-            });
-            Ok(result.to_string())
-        }
+            let mut result = text.to_string();
+            for pattern in patterns {
+                let re = regex::Regex::new(pattern).unwrap();
+                result = re.replace_all(&result, |caps: &regex::Captures| {
+                    "-".repeat(caps.get(0).unwrap().as_str().len())
+                }).to_string();
+            }
+            Ok(result)
+        },
         _ => Err(pyo3::exceptions::PyValueError::new_err(
-            "Unrecognised value for `cleaning`. Use 'replace' or 'redact'.",
-        )),
+            "Unrecognised value for `cleaning`. Use 'replace' or 'redact'."
+        ))
     }
 }
 
