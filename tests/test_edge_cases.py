@@ -1,5 +1,7 @@
 """Tests for edge cases, boundary conditions, and error handling."""
 
+import os
+
 import pytest
 from piicleaner import Cleaner
 
@@ -490,6 +492,9 @@ class TestPerformanceEdgeCases:
             "Non-PII text was incorrectly modified"
         )
 
+    @pytest.mark.skipif(
+        os.getenv("CI"), reason="Performance tests unreliable in CI"
+    )
     def test_batch_function_performance(self, cleaner):
         """Test that batch functions outperform individual calls."""
         import time
