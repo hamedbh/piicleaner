@@ -9,7 +9,9 @@ authors = [{name = "Hamed Bastan-Hagh", email = "hamed@bastanhagh.com"}]
 license = {text = "MIT"}
 readme = "README.md"
 requires-python = ">=3.9"
-dependencies = ["polars>=0.20.0"]
+dependencies = [
+    "polars>=1.0.0,<2.0.0",
+]
 dynamic = ["version"]
 classifiers = [
     "Development Status :: 4 - Beta",

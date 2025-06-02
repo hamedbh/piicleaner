@@ -1,5 +1,6 @@
 """Tests for Polars namespace API functionality"""
 
+import piicleaner  # noqa: F401
 import polars as pl
 
 
