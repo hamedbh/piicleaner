@@ -50,7 +50,7 @@ jobs:
       run: cargo test
     
     - name: Run Python tests
-      run: uv run pytest -v
+      run: uv run pytest -v -m "not performance"
     
     - name: Check code formatting
       run: uv run ruff check

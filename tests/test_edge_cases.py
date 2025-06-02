@@ -1,6 +1,5 @@
 """Tests for edge cases, boundary conditions, and error handling."""
 
-import os
 
 import pytest
 from piicleaner import Cleaner
@@ -419,6 +418,7 @@ class TestPerformanceEdgeCases:
         assert "user99@test.com" not in cleaned
         assert "Text 99" in cleaned
 
+    @pytest.mark.performance
     def test_large_dataframe_performance(self, cleaner):
         """Test performance with larger DataFrames to ensure vectorization."""
         try:
@@ -492,10 +492,7 @@ class TestPerformanceEdgeCases:
             "Non-PII text was incorrectly modified"
         )
 
-    @pytest.mark.skipif(
-        os.getenv("CI", "").lower() in ("true", "1", "yes"),
-        reason="Performance tests unreliable in CI"
-    )
+    @pytest.mark.performance
     def test_batch_function_performance(self, cleaner):
         """Test that batch functions outperform individual calls."""
         import time

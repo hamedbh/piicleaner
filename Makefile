@@ -1,4 +1,4 @@
-.PHONY: help install dev build test lint format clean check
+.PHONY: help dev check build test test-all clean format
 
 help:  ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-15s\033[0m %s\n", $$1, $$2}'
@@ -14,7 +14,10 @@ build:  ## Build release version
 
 test:
 	cargo test
-	uv run pytest -v
+	uv run pytest -v -m "not performance"
+
+test-all: test
+	uv run pytest -v -m "performance"
 
 clean:  ## Clean build artifacts
 	cargo clean
