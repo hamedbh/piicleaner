@@ -493,7 +493,8 @@ class TestPerformanceEdgeCases:
         )
 
     @pytest.mark.skipif(
-        os.getenv("CI"), reason="Performance tests unreliable in CI"
+        os.getenv("CI", "").lower() in ("true", "1", "yes"),
+        reason="Performance tests unreliable in CI"
     )
     def test_batch_function_performance(self, cleaner):
         """Test that batch functions outperform individual calls."""
