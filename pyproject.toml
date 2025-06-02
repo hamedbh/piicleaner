@@ -34,7 +34,8 @@ Issues = "https://github.com/hamedbh/piicleaner/issues"
 
 [dependency-groups]
 dev = [
-    "maturin[patchelf]>=1.8.6",
+    "maturin>=1.8.6",
+    "patchelf>=0.17.2.2 ; sys_platform == 'linux'",
     "pytest>=8.3.5",
 ]
 
