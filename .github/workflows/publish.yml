@@ -209,9 +209,6 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       
-      - name: Install uv
-        uses: astral-sh/setup-uv@v5
-
       - name: Wait for TestPyPI to update
         shell: python
         run: |
@@ -221,8 +218,8 @@ jobs:
       
       - name: Install from TestPyPI
         run: |
-          uv pip install --system \
-            --index https://test.pypi.org/simple/ \
+          pip install --index-url https://test.pypi.org/simple/ \
+            --extra-index-url https://pypi.org/simple/ \
             piicleaner
       
       - name: Test import
