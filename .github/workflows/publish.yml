@@ -221,7 +221,8 @@ jobs:
       
       - name: Install from TestPyPI
         run: |
-          uv pip install --index-url https://test.pypi.org/simple/ \
+          uv pip install --system \
+            --index-url https://test.pypi.org/simple/ \
             --extra-index-url https://pypi.org/simple/ \
             piicleaner
       
