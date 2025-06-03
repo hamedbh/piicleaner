@@ -15,8 +15,34 @@ A fast, Rust-powered Python library for detecting and cleaning Personal Identifi
 ```bash
 # Using uv
 uv add piicleaner
-# Via pip
+
+# Using  pip
 pip install piicleaner
+```
+
+### Platform Support
+
+PIICleaner provides pre-built wheels for:
+
+- **Windows**: x86_64 (Intel/AMD 64-bit)
+- **macOS**: x86_64 (Intel) and arm64 (Apple Silicon)
+- **Linux**: x86_64 (Intel/AMD 64-bit)
+
+**Note**: Linux ARM64 (aarch) wheels are not currently provides. Users on ARM64 Linux systems (e.g. Raspberry Pi, AWS Graviton) will need to build from source. See [Building from Source](#building-from-source) below.
+
+### Building from Source
+
+For platforms without pre-built wheels you'll need:
+
+- Rust toolchain (1.70 or newer), install from [rustup.rs](https://rustup.rs)
+- Python development headers
+
+```bash
+# Using uv
+uv add piicleaner --no-binary piicleaner
+
+# Using pip
+pip install piicleaner --no-binary piicleaner
 ```
 
 ## Quick Start
@@ -128,7 +154,7 @@ PIICleaner is built with Rust for maximum performance:
 ## Requirements
 
 - Python ≥ 3.9
-- Polars ≥ 0.20.0 (optional, for DataFrame support)
+- Polars ≥ 1.0.0 (optional, for DataFrame support)
 
 ## License
 

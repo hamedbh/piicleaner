@@ -48,6 +48,8 @@ dev = [
 [tool.maturin]
 python-source = "python"
 module-name = "piicleaner._internal"
+# Get version from git tags
+version = { source = "tag" }
 
 [tool.ruff]
 line-length = 79

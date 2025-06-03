@@ -1,0 +1,231 @@
+name: Publish Python 🐍 distribution 📦 to PyPI and TestPyPI
+
+on:
+  push:
+    tags:
+      - 'v*'  # Trigger on version tags like v1.0.0
+  workflow_dispatch:  # Allow manual triggering for testing
+
+jobs:
+  # Build source distribution
+  build-sdist:
+    name: Build source distribution 📦
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+      
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Install dependencies
+        run: |
+          uv pip install --system twine
+      
+      - name: Build sdist
+        run: uv build --sdist
+      
+      - name: Check sdist
+        run: |
+          twine check dist/*
+      
+      - name: Store the source distribution
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-sdist
+          path: dist/*.tar.gz
+
+  # Build wheels for all platforms
+  build-wheels:
+    name: Build wheels on ${{ matrix.platform.os }}
+    runs-on: ${{ matrix.platform.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+          - os: ubuntu-latest
+            target: x86_64
+            manylinux: auto
+          - os: windows-latest
+            target: x86_64
+            manylinux: false
+          - os: macos-latest
+            target: x86_64
+            manylinux: false
+          - os: macos-latest
+            target: aarch64
+            manylinux: false
+        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Build wheels
+        uses: PyO3/maturin-action@v1
+        with:
+          target: ${{ matrix.platform.target }}
+          manylinux: ${{ matrix.platform.manylinux }}
+          args: --release --out dist --interpreter python${{ matrix.python-version }}
+          sccache: 'true'
+          rust-toolchain: stable
+      
+      - name: Store wheels
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-wheels-${{ matrix.platform.os }}-${{ matrix.platform.target }}-${{ matrix.python-version }}
+          path: dist/*.whl
+
+  # Merge all artifacts into one for easier downloading
+  merge-artifacts:
+    name: Merge build artifacts
+    needs: [build-sdist, build-wheels]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Merge artifacts
+        uses: actions/upload-artifact/merge@v4
+        with:
+          name: python-package-distributions
+          pattern: python-*
+          delete-merged: true
+
+  # Publish to TestPyPI (automatic on every tag)
+  publish-to-testpypi:
+    name: Publish Python 🐍 distribution 📦 to TestPyPI
+    needs: [merge-artifacts]
+    runs-on: ubuntu-latest
+    environment: testpypi
+    permissions:
+      id-token: write  # IMPORTANT: mandatory for trusted publishing
+    
+    steps:
+      - name: Download all the dists
+        uses: actions/download-artifact@v4
+        with:
+          name: python-package-distributions
+          path: dist/
+      
+      - name: List distribution packages
+        run: ls -la dist/
+      
+      - name: Publish distribution 📦 to TestPyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
+          skip-existing: true  # Allow retrying if upload fails
+          verbose: true
+
+  # Publish to PyPI (requires manual approval)
+  publish-to-pypi:
+    name: Publish Python 🐍 distribution 📦 to PyPI
+    needs: [publish-to-testpypi]
+    runs-on: ubuntu-latest
+    environment: pypi  # This environment requires manual approval
+    permissions:
+      id-token: write  # IMPORTANT: mandatory for trusted publishing
+    
+    steps:
+      - name: Download all the dists
+        uses: actions/download-artifact@v4
+        with:
+          name: python-package-distributions
+          path: dist/
+      
+      - name: List distribution packages
+        run: ls -la dist/
+      
+      - name: Publish distribution 📦 to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          verbose: true
+
+  # Optional: Sign distributions and create GitHub release
+  github-release:
+    name: Sign distributions and create GitHub Release
+    needs: [publish-to-pypi]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write  # Required for creating releases
+      id-token: write  # Required for signing
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Download all the dists
+        uses: actions/download-artifact@v4
+        with:
+          name: python-package-distributions
+          path: dist/
+      
+      - name: Sign the dists with Sigstore
+        uses: sigstore/gh-action-sigstore-python@v3.0.0
+        with:
+          inputs: >-
+            ./dist/*.tar.gz
+            ./dist/*.whl
+      
+      - name: Get release notes
+        id: get_release_notes
+        run: |
+          # Extract version from tag
+          VERSION=${GITHUB_REF#refs/tags/v}
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+          
+          # You can customize this to extract from CHANGELOG.md or similar
+          echo "Automated release for piicleaner v$VERSION" > release_notes.txt
+      
+      - name: Create GitHub Release
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "piicleaner ${{ steps.get_release_notes.outputs.VERSION }}" \
+            --notes-file release_notes.txt
+      
+      - name: Upload artifacts to GitHub Release
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload "$GITHUB_REF_NAME" dist/** \
+            --repo "$GITHUB_REPOSITORY"
+
+  # Optional: Test installation from TestPyPI
+  test-install:
+    name: Test installation from TestPyPI
+    needs: [publish-to-testpypi]
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python-version: ["3.9", "3.13"]  # Test oldest and newest
+    
+    steps:
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Wait for TestPyPI to update
+        shell: python
+        run: |
+          import time
+          print("Waiting 60 seconds for TestPyPI to update ...")
+          time.sleep(60)
+      
+      - name: Install from TestPyPI
+        run: |
+          uv pip install --index-url https://test.pypi.org/simple/ \
+            --extra-index-url https://pypi.org/simple/ \
+            piicleaner
+      
+      - name: Test import
+        run: |
+          python -c "import piicleaner; print('Successfully imported piicleaner')"
+
