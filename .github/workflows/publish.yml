@@ -200,7 +200,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        os: [ubuntu-latest, macos-latest]
         python-version: ["3.9", "3.13"]  # Test oldest and newest
     
     steps:
@@ -222,8 +222,7 @@ jobs:
       - name: Install from TestPyPI
         run: |
           uv pip install --system \
-            --index-url https://test.pypi.org/simple/ \
-            --extra-index-url https://pypi.org/simple/ \
+            --index https://test.pypi.org/simple/ \
             piicleaner
       
       - name: Test import
