@@ -12,11 +12,11 @@ check:  ## Check Rust code
 build:  ## Build release version
 	uv run maturin build --release
 
-test:
+test:  ## Run tests (no performance)
 	cargo test
 	uv run pytest -v -m "not performance"
 
-test-all: test
+test-all: test ## Run all tests (including performance)
 	uv run pytest -v -m "performance"
 
 clean:  ## Clean build artifacts
@@ -24,5 +24,6 @@ clean:  ## Clean build artifacts
 	find . -name "*.so" -delete
 	find . -name "__pycache__" -delete
 
-format:  ## Format code (when we add it later)
+format:  ## Format code
 	cargo fmt
+	uv run ruff format

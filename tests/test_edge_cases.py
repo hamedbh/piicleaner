@@ -1,6 +1,5 @@
 """Tests for edge cases, boundary conditions, and error handling."""
 
-
 import pytest
 from piicleaner import Cleaner
 
@@ -90,6 +89,51 @@ class TestSpecialCharacters:
         for text in mixed_case_texts:
             matches = cleaner.detect_pii(text)
             assert len(matches) >= 1
+
+    def test_case_sensitivity_edge_cases(self, cleaner):
+        """Test edge cases for case sensitivity functionality."""
+        # Test with mixed case patterns that should only match
+        # case-insensitively
+        test_cases = [
+            (
+                "postcode: sw1a 1aa",
+                True,
+                False,
+            ),  # (text, should_match_insensitive, should_match_sensitive)
+            ("POSTCODE: SW1A 1AA", True, True),
+            ("nino: ab123456c", True, False),
+            ("NINO: AB123456C", True, True),
+            ("address: 123 MAIN STREET", True, False),
+            (
+                "address: 123 main street",
+                True,
+                True,
+            ),  # lowercase 'street' in original pattern
+        ]
+
+        for (
+            text,
+            should_match_insensitive,
+            should_match_sensitive,
+        ) in test_cases:
+            # Test case-insensitive
+            matches_insensitive = cleaner.detect_pii(text, ignore_case=True)
+            if should_match_insensitive:
+                assert len(matches_insensitive) >= 1, (
+                    f"Case-insensitive failed for: {text}"
+                )
+
+            # Test case-sensitive
+            matches_sensitive = cleaner.detect_pii(text, ignore_case=False)
+            if should_match_sensitive:
+                assert len(matches_sensitive) >= 1, (
+                    f"Case-sensitive failed for: {text}"
+                )
+            elif not should_match_sensitive and should_match_insensitive:
+                # Should match insensitive but not sensitive
+                assert len(matches_insensitive) > len(matches_sensitive), (
+                    f"Case sensitivity not working for: {text}"
+                )
 
     def test_punctuation_around_pii(self, cleaner):
         """Test PII detection with surrounding punctuation."""
@@ -205,7 +249,9 @@ class TestMalformedAndIncompleteData:
             )
 
     def test_almost_valid_ninos(self, cleaner):
-        """Test with almost-valid National Insurance numbers."""
+        """Test with almost-valid National Insurance numbers
+        (case-insensitive default).
+        """
         almost_ninos = [
             "AB123456",  # missing suffix
             "A123456C",  # too short prefix
@@ -218,8 +264,31 @@ class TestMalformedAndIncompleteData:
             matches = cleaner.detect_pii(nino)
             # Almost-valid NINOs should generally not be detected as valid
             # Allow some flexibility as case-id patterns might still match
-            assert len(matches) <= 2, (
+            # With case-insensitive matching as default, we may get more
+            # matches
+            assert len(matches) <= 3, (
                 f"Too many matches for almost-NINO '{nino}': {matches}"
+            )
+
+    def test_almost_valid_ninos_case_sensitive(self, cleaner):
+        """Test with almost-valid National Insurance numbers
+        (case-sensitive).
+        """
+        almost_ninos = [
+            "AB123456",  # missing suffix
+            "A123456C",  # too short prefix
+            "QQ123456C",  # invalid prefix letters
+            "AB12345C",  # too short number
+            "AB1234567C",  # too long number
+        ]
+
+        for nino in almost_ninos:
+            matches = cleaner.detect_pii(nino, ignore_case=False)
+            # Almost-valid NINOs should generally not be detected as valid
+            # Allow some flexibility as case-id patterns might still match
+            assert len(matches) <= 2, (
+                f"Too many matches for almost-NINO '{nino}' (case-sensitive):"
+                f"{matches}"
             )
 
 

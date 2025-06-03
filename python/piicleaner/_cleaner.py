@@ -34,11 +34,12 @@ class Cleaner(PolarsCleanerMixin):
 
     def detect_pii(self, string, ignore_case=True):
         """Detect PII in a string and return match information"""
-        # For now, ignore the ignore_case parameter
         if self.cleaners == "all":
-            matches = rust_detect_pii(string)
+            matches = rust_detect_pii(string, ignore_case)
         else:
-            matches = detect_pii_with_cleaners(string, self.cleaners)
+            matches = detect_pii_with_cleaners(
+                string, self.cleaners, ignore_case
+            )
 
         # Convert to the format your original API returns
         return [
@@ -50,12 +51,12 @@ class Cleaner(PolarsCleanerMixin):
         """Clean PII from a string"""
         # Use cleaner-specific cleaning if not using all patterns
         if self.cleaners == "all":
-            return rust_clean_pii(string, cleaning)
+            return rust_clean_pii(string, cleaning, ignore_case)
         else:
             # For specific cleaners, we need to implement custom logic
             # since there's no rust function for cleaner-specific cleaning yet
             # For now, detect with specific cleaners and replace manually
-            matches = self.detect_pii(string)
+            matches = self.detect_pii(string, ignore_case)
             if not matches:
                 return string
 
@@ -91,13 +92,13 @@ class Cleaner(PolarsCleanerMixin):
         if self.cleaners == "all":
             from piicleaner._internal import clean_pii_batch
 
-            return clean_pii_batch(string_list, cleaning)
+            return clean_pii_batch(string_list, cleaning, ignore_case)
         else:
             # Use vectorized function for specific cleaners too
             from piicleaner._internal import clean_pii_with_cleaners_batch
 
             return clean_pii_with_cleaners_batch(
-                string_list, self.cleaners, cleaning
+                string_list, self.cleaners, cleaning, ignore_case
             )
 
     @staticmethod
