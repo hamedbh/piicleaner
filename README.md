@@ -5,6 +5,7 @@ A fast, Rust-powered Python library for detecting and cleaning Personal Identifi
 ## Features
 
 - **Fast PII Detection**: Rust-based regex engine for high-performance text processing
+- **Case-Insensitive Matching**: Detects PII regardless of case by default, with optional case-sensitive mode
 - **Multiple PII Types**: Detects emails, phone numbers, postcodes, National Insurance numbers, addresses, and more
 - **Flexible Cleaning**: Replace or redact detected PII with customizable strategies
 - **Polars Integration**: Native support for cleaning DataFrames and Series
@@ -55,16 +56,23 @@ from piicleaner import Cleaner
 # Initialize cleaner
 cleaner = Cleaner()
 
-# Clean a single string
-text = "Contact John at john@example.com or call +44 20 7946 0958"
+# Clean a single string (case-insensitive by default)
+text = "Contact John at JOHN@EXAMPLE.COM or call +44 20 7946 0958"
 cleaned = cleaner.clean_pii(text, "redact")
-print(cleaned)  # "Contact John at [REDACTED] or call [REDACTED]"
+print(cleaned)  # "Contact John at ---------------- or call ----------------"
 
 # Detect PII locations
 matches = cleaner.detect_pii(text)
 print(matches)  
-# [{'start': 17, 'end': 34, 'text': 'john@example.com'}, 
-#  {'start': 43, 'end': 58, 'text': '+44 20 7946 0958'}]
+# [{'start': 16, 'end': 32, 'text': 'JOHN@EXAMPLE.COM'}, 
+#  {'start': 41, 'end': 58, 'text': '+44 20 7946 0958'}]
+
+# Case-sensitive detection
+matches_sensitive = cleaner.detect_pii("nino: ab123456c", ignore_case=False)
+print(matches_sensitive)  # [] - no match because NINO pattern expects uppercase
+
+matches_insensitive = cleaner.detect_pii("nino: ab123456c", ignore_case=True)
+print(matches_insensitive)  # [{'start': 6, 'end': 15, 'text': 'ab123456c'}]
 ```
 
 ### Polars Integration
@@ -101,6 +109,11 @@ print(pii_df)
 email_cleaner = Cleaner(cleaners=["email"])
 phone_cleaner = Cleaner(cleaners=["telephone", "postcode"])
 
+# Case-insensitive cleaning with specific cleaners
+text = "EMAIL: JOHN@EXAMPLE.COM"
+cleaned = email_cleaner.clean_pii(text, "redact", ignore_case=True)
+print(cleaned)  # "EMAIL: ----------------"
+
 # See available cleaners
 print(Cleaner.get_available_cleaners())
 # ['address', 'case-id', 'cash-amount', 'email', 'nino', 'postcode', 'tag', 'telephone']
@@ -121,8 +134,17 @@ print(Cleaner.get_available_cleaners())
 
 ## Cleaning Methods
 
-- **`"redact"`**: Redact the PII, replacing it with `---------`
+- **`"redact"`**: Redact the PII, replacing it with dashes (`---------`)
 - **`"replace"`**: Replace the string entirely if _any_ PII is detected
+
+## Case Sensitivity
+
+By default, PIICleaner performs **case-insensitive** matching to catch PII regardless of how it's formatted:
+
+- `ignore_case=True` (default): Detects `ab123456c`, `AB123456C`, and `Ab123456C` as valid NINOs
+- `ignore_case=False`: Only detects patterns matching the exact case defined in regex patterns
+
+This ensures maximum PII detection while allowing precise control when needed.
 
 ## API Reference
 

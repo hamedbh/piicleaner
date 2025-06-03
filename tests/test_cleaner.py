@@ -270,3 +270,213 @@ class TestSpecificCleaners:
 
         # Should not detect anything with invalid cleaner
         assert matches == []
+
+
+class TestCaseInsensitiveDetection:
+    """Test case-insensitive PII detection functionality."""
+
+    @pytest.fixture
+    def cleaner(self):
+        """Default cleaner instance for testing."""
+        return Cleaner()
+
+    def test_case_insensitive_nino_detection(self, cleaner):
+        """Test case-insensitive NINO detection."""
+        # Test mixed case NINO - use a pattern that won't match case-id
+        text_mixed = "My nino is ch123456a"
+        text_upper = "My NINO is CH123456A"
+
+        # Case-insensitive should detect both
+        matches_mixed_insensitive = cleaner.detect_pii(
+            text_mixed, ignore_case=True
+        )
+        matches_upper_insensitive = cleaner.detect_pii(
+            text_upper, ignore_case=True
+        )
+
+        # Case-sensitive should only detect uppercase
+        matches_mixed_sensitive = cleaner.detect_pii(
+            text_mixed, ignore_case=False
+        )
+        matches_upper_sensitive = cleaner.detect_pii(
+            text_upper, ignore_case=False
+        )
+
+        # Check that case-insensitive finds both
+        nino_mixed_insensitive = [
+            m for m in matches_mixed_insensitive if m["text"] == "ch123456a"
+        ]
+        nino_upper_insensitive = [
+            m for m in matches_upper_insensitive if m["text"] == "CH123456A"
+        ]
+        assert len(nino_mixed_insensitive) >= 1, (
+            "Case-insensitive should detect lowercase NINO"
+        )
+        assert len(nino_upper_insensitive) >= 1, (
+            "Case-insensitive should detect uppercase NINO"
+        )
+
+        # Check case-sensitive behavior
+        nino_upper_sensitive = [
+            m for m in matches_upper_sensitive if m["text"] == "CH123456A"
+        ]
+        nino_mixed_sensitive = [
+            m for m in matches_mixed_sensitive if m["text"] == "ch123456a"
+        ]
+        assert len(nino_upper_sensitive) >= 1, (
+            "Case-sensitive should detect uppercase NINO"
+        )
+        assert len(nino_mixed_sensitive) == 0, (
+            "Case-sensitive should NOT detect lowercase NINO"
+        )
+
+    def test_case_insensitive_email_detection(self, cleaner):
+        """Test case-insensitive email detection."""
+        text_upper = "Contact JOHN@EXAMPLE.COM for help"
+        text_mixed = "Contact John@Example.Com for help"
+        text_lower = "Contact john@example.com for help"
+
+        # All should be detected with case-insensitive
+        for text in [text_upper, text_mixed, text_lower]:
+            matches = cleaner.detect_pii(text, ignore_case=True)
+            email_matches = [m for m in matches if "@" in m["text"]]
+            assert len(email_matches) >= 1, (
+                f"Failed to detect email in: {text}"
+            )
+
+    def test_case_insensitive_postcode_detection(self, cleaner):
+        """Test case-insensitive postcode detection."""
+        text_upper = "Send it to SW1A 1AA please"
+        text_lower = "Send it to sw1a 1aa please"
+        text_mixed = "Send it to Sw1A 1aA please"
+
+        # Case-insensitive should detect all
+        for text in [text_upper, text_lower, text_mixed]:
+            matches = cleaner.detect_pii(text, ignore_case=True)
+            assert len(matches) >= 1, (
+                f"Case-insensitive failed to detect postcode in: {text}"
+            )
+
+        # Case-sensitive should only detect uppercase
+        matches_upper = cleaner.detect_pii(text_upper, ignore_case=False)
+        matches_lower = cleaner.detect_pii(text_lower, ignore_case=False)
+
+        postcode_upper = [m for m in matches_upper if m["text"] == "SW1A 1AA"]
+        postcode_lower = [m for m in matches_lower if m["text"] == "sw1a 1aa"]
+        assert len(postcode_upper) >= 1, (
+            "Case-sensitive should detect uppercase postcode"
+        )
+        assert len(postcode_lower) == 0, (
+            "Case-sensitive should NOT detect lowercase postcode"
+        )
+
+    def test_case_insensitive_address_detection(self, cleaner):
+        """Test case-insensitive address detection."""
+        text_lower = "123 high street"
+        text_upper = "123 HIGH STREET"
+        text_mixed = "123 High Street"
+
+        # Case-insensitive should detect all
+        for text in [text_lower, text_upper, text_mixed]:
+            matches = cleaner.detect_pii(text, ignore_case=True)
+            address_matches = [
+                m for m in matches if "street" in m["text"].lower()
+            ]
+            assert len(address_matches) >= 1, (
+                f"Case-insensitive failed to detect address in: {text}"
+            )
+
+    def test_case_insensitive_cleaning_redact(self, cleaner):
+        """Test case-insensitive cleaning with redact method."""
+        text_mixed = "My nino is ab123456c and email JOHN@EXAMPLE.COM"
+
+        # Case-insensitive cleaning should redact both
+        cleaned_insensitive = cleaner.clean_pii(
+            text_mixed, "redact", ignore_case=True
+        )
+        assert "ab123456c" not in cleaned_insensitive, (
+            "NINO should be redacted"
+        )
+        assert "JOHN@EXAMPLE.COM" not in cleaned_insensitive, (
+            "Email should be redacted"
+        )
+        assert "My nino is" in cleaned_insensitive, (
+            "Non-PII text should remain"
+        )
+
+        # Case-sensitive should only clean some items
+        cleaned_sensitive = cleaner.clean_pii(
+            text_mixed, "redact", ignore_case=False
+        )
+        assert "JOHN@EXAMPLE.COM" not in cleaned_sensitive, (
+            "Email should still be redacted"
+        )
+
+    def test_case_insensitive_cleaning_replace(self, cleaner):
+        """Test case-insensitive cleaning with replace method."""
+        text_mixed = "Contact JOHN@EXAMPLE.COM for help"
+
+        # Both should trigger replacement since PII is detected
+        cleaned_insensitive = cleaner.clean_pii(
+            text_mixed, "replace", ignore_case=True
+        )
+        cleaned_sensitive = cleaner.clean_pii(
+            text_mixed, "replace", ignore_case=False
+        )
+
+        # Both should be replaced since email patterns handle mixed case anyway
+        assert cleaned_insensitive == "[PII detected, comment redacted]"
+        assert cleaned_sensitive == "[PII detected, comment redacted]"
+
+    def test_case_insensitive_default_parameter(self, cleaner):
+        """Test that ignore_case defaults to True."""
+        text_mixed = "My nino is ab123456c"
+
+        # Default behavior should be case-insensitive
+        matches_default = cleaner.detect_pii(text_mixed)
+        matches_explicit = cleaner.detect_pii(text_mixed, ignore_case=True)
+
+        # Should get same results
+        assert matches_default == matches_explicit
+
+    def test_case_insensitive_list_cleaning(self, cleaner):
+        """Test case-insensitive cleaning for lists."""
+        text_list = [
+            "nino: ab123456c",
+            "EMAIL: JOHN@EXAMPLE.COM",
+            "postcode: sw1a 1aa",
+            "No PII here",
+        ]
+
+        # Case-insensitive cleaning
+        cleaned_insensitive = cleaner.clean_list(
+            text_list, "redact", ignore_case=True
+        )
+        assert len(cleaned_insensitive) == 4
+        assert "ab123456c" not in cleaned_insensitive[0]
+        assert "JOHN@EXAMPLE.COM" not in cleaned_insensitive[1]
+        assert "sw1a 1aa" not in cleaned_insensitive[2]
+        assert cleaned_insensitive[3] == "No PII here"
+
+        # Case-sensitive cleaning
+        cleaned_sensitive = cleaner.clean_list(
+            text_list, "redact", ignore_case=False
+        )
+        assert len(cleaned_sensitive) == 4
+        assert (
+            "JOHN@EXAMPLE.COM" not in cleaned_sensitive[1]
+        )  # Email should still be cleaned
+        assert cleaned_sensitive[3] == "No PII here"
+
+    def test_case_insensitive_specific_cleaners(self):
+        """Test case-insensitive detection with specific cleaners."""
+        email_cleaner = Cleaner(["email"])
+
+        text_mixed = "Contact JOHN@EXAMPLE.COM or call +44 20 1234 5678"
+
+        # Should only detect email with case-insensitive
+        matches = email_cleaner.detect_pii(text_mixed, ignore_case=True)
+        pii_texts = [m["text"] for m in matches]
+
+        assert any("JOHN@EXAMPLE.COM" in text for text in pii_texts)
+        assert not any("+44 20 1234 5678" in text for text in pii_texts)
