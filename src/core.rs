@@ -41,9 +41,15 @@ static ALL_PATTERNS_SET_CASE_INSENSITIVE: Lazy<RegexSet> = Lazy::new(|| {
 /// Core function to detect PII patterns in text (optimised)
 pub fn detect_pii_core(text: &str, ignore_case: bool) -> Vec<(usize, usize, String)> {
     let (patterns_set, patterns_compiled) = if ignore_case {
-        (&*ALL_PATTERNS_SET_CASE_INSENSITIVE, &*ALL_PATTERNS_COMPILED_CASE_INSENSITIVE)
+        (
+            &*ALL_PATTERNS_SET_CASE_INSENSITIVE,
+            &*ALL_PATTERNS_COMPILED_CASE_INSENSITIVE,
+        )
     } else {
-        (&*ALL_PATTERNS_SET_CASE_SENSITIVE, &*ALL_PATTERNS_COMPILED_CASE_SENSITIVE)
+        (
+            &*ALL_PATTERNS_SET_CASE_SENSITIVE,
+            &*ALL_PATTERNS_COMPILED_CASE_SENSITIVE,
+        )
     };
 
     // Fast check: does this text match ANY pattern?
@@ -111,7 +117,11 @@ pub fn clean_pii_core(text: &str, cleaning: &str, ignore_case: bool) -> String {
 }
 
 /// Core function to detect PII with specific cleaners
-pub fn detect_pii_with_cleaners_core(text: &str, cleaners: &[&str], ignore_case: bool) -> Vec<(usize, usize, String)> {
+pub fn detect_pii_with_cleaners_core(
+    text: &str,
+    cleaners: &[&str],
+    ignore_case: bool,
+) -> Vec<(usize, usize, String)> {
     let patterns = if cleaners.len() == 1 && cleaners[0] == "all" {
         patterns::get_all_patterns()
     } else {
@@ -141,8 +151,14 @@ pub fn detect_pii_with_cleaners_core(text: &str, cleaners: &[&str], ignore_case:
 }
 
 /// Vectorized function to detect PII in multiple texts at once
-pub fn detect_pii_batch_core(texts: &[String], ignore_case: bool) -> Vec<Vec<(usize, usize, String)>> {
-    texts.par_iter().map(|text| detect_pii_core(text, ignore_case)).collect()
+pub fn detect_pii_batch_core(
+    texts: &[String],
+    ignore_case: bool,
+) -> Vec<Vec<(usize, usize, String)>> {
+    texts
+        .par_iter()
+        .map(|text| detect_pii_core(text, ignore_case))
+        .collect()
 }
 
 /// Vectorized function to clean PII from multiple texts at once

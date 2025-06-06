@@ -26,7 +26,11 @@ pub fn detect_pii_with_cleaners(
     ignore_case: bool,
 ) -> PyResult<Vec<(usize, usize, String)>> {
     let cleaner_refs: Vec<&str> = cleaners.iter().map(|s| s.as_str()).collect();
-    Ok(core::detect_pii_with_cleaners_core(text, &cleaner_refs, ignore_case))
+    Ok(core::detect_pii_with_cleaners_core(
+        text,
+        &cleaner_refs,
+        ignore_case,
+    ))
 }
 
 /// Get list of available cleaner names
@@ -44,14 +48,21 @@ pub fn get_available_cleaners() -> PyResult<Vec<String>> {
 /// Vectorized detect PII for multiple texts
 #[pyfunction]
 #[pyo3(signature = (texts, ignore_case = true))]
-pub fn detect_pii_batch(texts: Vec<String>, ignore_case: bool) -> PyResult<Vec<Vec<(usize, usize, String)>>> {
+pub fn detect_pii_batch(
+    texts: Vec<String>,
+    ignore_case: bool,
+) -> PyResult<Vec<Vec<(usize, usize, String)>>> {
     Ok(core::detect_pii_batch_core(&texts, ignore_case))
 }
 
 /// Vectorized clean PII for multiple texts
 #[pyfunction]
 #[pyo3(signature = (texts, cleaning, ignore_case = true))]
-pub fn clean_pii_batch(texts: Vec<String>, cleaning: &str, ignore_case: bool) -> PyResult<Vec<String>> {
+pub fn clean_pii_batch(
+    texts: Vec<String>,
+    cleaning: &str,
+    ignore_case: bool,
+) -> PyResult<Vec<String>> {
     Ok(core::clean_pii_batch_core(&texts, cleaning, ignore_case))
 }
 
