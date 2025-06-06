@@ -20,18 +20,14 @@ from ._internal import (
     get_available_cleaners,
 )
 
-# Import Polars integration
+# Import Polars integration if available
 try:
     import importlib.util
 
     if importlib.util.find_spec("polars") is not None:
         from . import _polars_plugin  # noqa: F401
-
-        print("Polars plugin imported successfully")
 except ImportError:
-    print("Polars not available - skipping plugin registration")
-
-__version__ = "0.1.0"
+    pass
 
 __all__ = [
     "detect_pii",

@@ -13,13 +13,13 @@ class TestStringBoundaryConditions:
         return Cleaner()
 
     def test_empty_string(self, cleaner):
-        """Test behavior with empty strings."""
+        """Test behaviour with empty strings."""
         assert cleaner.detect_pii("") == []
         assert cleaner.clean_pii("", "redact") == ""
         assert cleaner.clean_pii("", "replace") == ""
 
     def test_whitespace_only(self, cleaner):
-        """Test behavior with whitespace-only strings."""
+        """Test behaviour with whitespace-only strings."""
         whitespace_texts = [" ", "\t", "\n", "\r", "   \t\n\r   "]
 
         for text in whitespace_texts:
@@ -28,7 +28,7 @@ class TestStringBoundaryConditions:
             assert cleaner.clean_pii(text, "replace") == text
 
     def test_very_long_strings(self, cleaner):
-        """Test behavior with very long strings."""
+        """Test behaviour with very long strings."""
         # Test long string with PII in middle
         base = "Lorem ipsum dolor sit amet. " * 1000
         text_with_pii = base + "Contact test@example.com for help. " + base
@@ -345,7 +345,7 @@ class TestOverlappingPatterns:
 
 
 class TestCleaningBehaviorEdgeCases:
-    """Test edge cases in cleaning behavior."""
+    """Test edge cases in cleaning behaviour."""
 
     @pytest.fixture
     def cleaner(self):
@@ -414,17 +414,17 @@ class TestErrorHandling:
         text = "Email: test@example.com"
 
         # The cleaning method might not validate the parameter
-        # This depends on implementation - test actual behavior
+        # This depends on implementation - test actual behaviour
         try:
             result = cleaner.clean_pii(text, "invalid_method")
             # If no error, check what it returns
             assert isinstance(result, str)
         except Exception:
-            # If it raises an exception, that's also valid behavior
+            # If it raises an exception, that's also valid behaviour
             pass
 
     def test_none_input_handling(self):
-        """Test behavior with None inputs."""
+        """Test behaviour with None inputs."""
         cleaner = Cleaner()
 
         # These should raise TypeError for None inputs
@@ -435,7 +435,7 @@ class TestErrorHandling:
             cleaner.clean_pii(None, "redact")
 
     def test_non_string_inputs(self):
-        """Test behavior with non-string inputs."""
+        """Test behaviour with non-string inputs."""
         cleaner = Cleaner()
         non_strings = [123, [], {}, True, 3.14]
 

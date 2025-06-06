@@ -50,7 +50,7 @@ class PolarsCleanerMixin:
         """Detect PII in a Polars DataFrame column
 
         :param df: Polars DataFrame
-        :param column_name: Name of the column to analyze
+        :param column_name: Name of the column to analyse
         :return: DataFrame with PII detection results
         """
         if not POLARS_AVAILABLE:
