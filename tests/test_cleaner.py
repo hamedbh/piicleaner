@@ -4,27 +4,27 @@ import pytest
 from piicleaner import Cleaner
 
 
-class TestCleanerInitialization:
-    """Test Cleaner class initialization and configuration."""
+class TestCleanerInitialisation:
+    """Test Cleaner class initialisation and configuration."""
 
     def test_init_default(self):
-        """Test default initialization uses all cleaners."""
+        """Test default initialisation uses all cleaners."""
         cleaner = Cleaner()
         assert cleaner.cleaners == "all"
 
     def test_init_single_cleaner_string(self):
-        """Test initialization with single cleaner as string."""
+        """Test initialisation with single cleaner as string."""
         cleaner = Cleaner("email")
         assert cleaner.cleaners == ["email"]
 
     def test_init_cleaner_list(self):
-        """Test initialization with list of cleaners."""
+        """Test initialisation with list of cleaners."""
         cleaners_list = ["email", "telephone", "postcode"]
         cleaner = Cleaner(cleaners_list)
         assert cleaner.cleaners == cleaners_list
 
     def test_init_invalid_type(self):
-        """Test initialization with invalid type raises TypeError."""
+        """Test initialisation with invalid type raises TypeError."""
         with pytest.raises(TypeError, match="Unsupported type"):
             Cleaner(123)
 
@@ -237,7 +237,7 @@ class TestEdgeCases:
 
 
 class TestSpecificCleaners:
-    """Test behavior with specific cleaner configurations."""
+    """Test behaviour with specific cleaner configurations."""
 
     def test_email_only_cleaner(self):
         """Test cleaner configured for emails only."""
@@ -263,7 +263,7 @@ class TestSpecificCleaners:
         assert "AB123456C" not in pii_texts
 
     def test_nonexistent_cleaner(self):
-        """Test behavior with non-existent cleaner type."""
+        """Test behaviour with non-existent cleaner type."""
         cleaner = Cleaner(["nonexistent"])
         text = "Email john@test.com"
         matches = cleaner.detect_pii(text)
@@ -316,7 +316,7 @@ class TestCaseInsensitiveDetection:
             "Case-insensitive should detect uppercase NINO"
         )
 
-        # Check case-sensitive behavior
+        # Check case-sensitive behaviour
         nino_upper_sensitive = [
             m for m in matches_upper_sensitive if m["text"] == "CH123456A"
         ]
@@ -432,7 +432,7 @@ class TestCaseInsensitiveDetection:
         """Test that ignore_case defaults to True."""
         text_mixed = "My nino is ab123456c"
 
-        # Default behavior should be case-insensitive
+        # Default behaviour should be case-insensitive
         matches_default = cleaner.detect_pii(text_mixed)
         matches_explicit = cleaner.detect_pii(text_mixed, ignore_case=True)
 

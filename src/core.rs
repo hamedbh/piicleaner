@@ -38,7 +38,7 @@ static ALL_PATTERNS_SET_CASE_INSENSITIVE: Lazy<RegexSet> = Lazy::new(|| {
         .expect("Failed to create case-insensitive regex set")
 });
 
-/// Core function to detect PII patterns in text (optimized)
+/// Core function to detect PII patterns in text (optimised)
 pub fn detect_pii_core(text: &str, ignore_case: bool) -> Vec<(usize, usize, String)> {
     let (patterns_set, patterns_compiled) = if ignore_case {
         (&*ALL_PATTERNS_SET_CASE_INSENSITIVE, &*ALL_PATTERNS_COMPILED_CASE_INSENSITIVE)
@@ -64,7 +64,7 @@ pub fn detect_pii_core(text: &str, ignore_case: bool) -> Vec<(usize, usize, Stri
     all_matches
 }
 
-/// Core function to clean PII from text (optimized with pre-compiled patterns)
+/// Core function to clean PII from text (optimised with pre-compiled patterns)
 pub fn clean_pii_core(text: &str, cleaning: &str, ignore_case: bool) -> String {
     let patterns_compiled = if ignore_case {
         &*ALL_PATTERNS_COMPILED_CASE_INSENSITIVE
@@ -340,9 +340,9 @@ mod tests {
         assert!(cleaners.len() > 0);
     }
 
-    // Tests for the new optimized functions
+    // Tests for the new optimised functions
     #[test]
-    fn test_optimized_vs_original_equivalence() {
+    fn test_optimised_vs_original_equivalence() {
         let test_cases = vec![
             "No PII here",
             "Email: test@example.com",
@@ -356,7 +356,7 @@ mod tests {
         for text in test_cases {
             for method in ["redact", "replace"] {
                 let result = clean_pii_core(text, method, false);
-                // Test that our optimized version works correctly
+                // Test that our optimised version works correctly
                 assert!(!result.is_empty() || text.is_empty());
 
                 if method == "replace" && detect_pii_core(text, false).len() > 0 {
@@ -522,7 +522,7 @@ mod tests {
     #[test]
     fn test_invalid_cleaning_method() {
         let text = "Email: test@example.com";
-        // Invalid method should default to redact behavior
+        // Invalid method should default to redact behaviour
         let result = clean_pii_core(text, "invalid_method", false);
         assert!(!result.contains("test@example.com"));
         assert!(result.contains("-") || result.starts_with("Email:"));

@@ -1,5 +1,10 @@
 """Tests for Polars namespace API functionality"""
 
+import pytest
+
+# Skip all tests if polars is not available
+pytest.importorskip("polars")
+
 import piicleaner  # noqa: F401
 import polars as pl
 

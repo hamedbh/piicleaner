@@ -1,7 +1,11 @@
 """Tests for Polars DataFrame integration functionality."""
 
-import polars as pl
 import pytest
+
+# Skip all tests if polars is not available
+pytest.importorskip("polars")
+
+import polars as pl
 from piicleaner import Cleaner
 
 

@@ -16,9 +16,13 @@ A fast, Rust-powered Python library for detecting and cleaning Personal Identifi
 ```bash
 # Using uv
 uv add piicleaner
+# With Polars support
+uv add 'piicleaner[polars]'
 
 # Using  pip
 pip install piicleaner
+# With Polars support
+pip install 'piicleaner[polars]'
 ```
 
 ### Platform Support
@@ -53,7 +57,7 @@ pip install piicleaner --no-binary piicleaner
 ```python
 from piicleaner import Cleaner
 
-# Initialize cleaner
+# Instantiate a cleaner
 cleaner = Cleaner()
 
 # Clean a single string (case-insensitive by default)
