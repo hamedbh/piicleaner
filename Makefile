@@ -1,7 +1,7 @@
-.PHONY: help dev check build test test-all clean format
+.PHONY: help dev check build test test_performance test_all clean format
 
 help:  ## Show this help
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-15s\033[0m %s\n", $$1, $$2}'
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
 
 dev:  ## Install in development mode
 	uv run maturin develop
@@ -16,8 +16,11 @@ test:  ## Run tests (no performance)
 	cargo test
 	uv run pytest -v -m "not performance"
 
-test-all: test ## Run all tests (including performance)
+test_performance: ## Run performance and benchmarking tests
 	uv run pytest -v -m "performance"
+	cargo bench
+
+test_all: test test_performance ## Run all tests (including performance)
 
 clean:  ## Clean build artifacts
 	cargo clean
