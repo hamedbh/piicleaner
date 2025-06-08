@@ -1,6 +1,6 @@
 use pyo3::prelude::*;
 
-mod core;
+pub mod core;
 pub mod patterns;
 
 /// Detect PII in a string and return match information

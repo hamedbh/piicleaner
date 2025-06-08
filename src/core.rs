@@ -101,6 +101,9 @@ pub fn clean_pii_core(text: &str, cleaning: &str, ignore_case: bool) -> String {
             }
             result
         }
+        // TODO: should not have redact as a default. Need to fix this
+        // here, anywhere else that uses this structure, and in the
+        // Python code to validate the value of `cleaning`
         _ => {
             // Default to redact
             let mut result = text.to_string();
@@ -122,6 +125,9 @@ pub fn detect_pii_with_cleaners_core(
     cleaners: &[&str],
     ignore_case: bool,
 ) -> Vec<(usize, usize, String)> {
+    // TODO: opportunity to optimise here, could get pre-compiled
+    // regexes instead of getting the patterns and then compiling
+    // them on the fly in the for-loop below
     let patterns = if cleaners.len() == 1 && cleaners[0] == "all" {
         patterns::get_all_patterns()
     } else {
@@ -170,6 +176,10 @@ pub fn clean_pii_batch_core(texts: &[String], cleaning: &str, ignore_case: bool)
 }
 
 /// Vectorized function to detect PII with specific cleaners for multiple texts
+// TODO: this is inefficient, regexes being compiled every time. Instead we
+// want to create a helper function like clean_pii_with_specific_patterns_core,
+// that will allow us to compile the regexes once and then pass them into the
+// iterator.
 pub fn detect_pii_with_cleaners_batch_core(
     texts: &[String],
     cleaners: &[&str],
