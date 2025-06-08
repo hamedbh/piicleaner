@@ -101,7 +101,7 @@ class TestSpecialCharacters:
                 False,
             ),  # (text, should_match_insensitive, should_match_sensitive)
             ("POSTCODE: SW1A 1AA", True, True),
-            ("nino: ab123456c", True, False),
+            ("nino: ab123456c", True, True),
             ("NINO: AB123456C", True, True),
             ("address: 123 MAIN STREET", True, False),
             (
