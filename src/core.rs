@@ -73,19 +73,23 @@ pub fn detect_pii_core(text: &str, ignore_case: bool) -> Vec<(usize, usize, Stri
 
 /// Core function to clean PII from text (optimised with pre-compiled patterns)
 pub fn clean_pii_core(text: &str, cleaning: &str, ignore_case: bool) -> String {
-    let patterns_compiled = if ignore_case {
-        &*ALL_PATTERNS_COMPILED_CASE_INSENSITIVE
+    let (patterns_set, patterns_compiled) = if ignore_case {
+        (
+            &*ALL_PATTERNS_SET_CASE_INSENSITIVE,
+            &*ALL_PATTERNS_COMPILED_CASE_INSENSITIVE,
+        )
     } else {
-        &*ALL_PATTERNS_COMPILED_CASE_SENSITIVE
+        (
+            &*ALL_PATTERNS_SET_CASE_SENSITIVE,
+            &*ALL_PATTERNS_COMPILED_CASE_SENSITIVE,
+        )
     };
 
     match cleaning {
         "replace" => {
             // Replace: if ANY PII found, replace entire text with message
-            for regex in patterns_compiled.iter() {
-                if regex.is_match(text) {
-                    return "[PII detected, comment redacted]".to_string();
-                }
+            if patterns_set.is_match(text) {
+                return "[PII detected, comment redacted]".to_string();
             }
             // No PII found, return original text
             text.to_string()
