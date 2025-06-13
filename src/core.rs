@@ -67,6 +67,7 @@ pub fn detect_pii_core(text: &str, ignore_case: bool) -> Vec<(usize, usize, Stri
     }
 
     all_matches.sort_by_key(|&(start, _, _)| start);
+    all_matches.dedup();
     all_matches
 }
 
@@ -153,6 +154,7 @@ pub fn detect_pii_with_cleaners_core(
     }
 
     all_matches.sort_by_key(|&(start, _, _)| start);
+    all_matches.dedup();
     all_matches
 }
 
