@@ -1,4 +1,5 @@
 name: CI
+# Test caching improvements
 
 on:
   push:
