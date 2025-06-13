@@ -1,4 +1,5 @@
 name: CI
+# Test caching improvements
 
 on:
   push:
@@ -23,7 +24,8 @@ jobs:
       with:
         version: "latest"
         enable-cache: true
-        cache-suffix: "py${{ matrix.python-version }}"
+        cache-dependency-glob: "**/uv.lock"
+        cache-suffix: "${{ matrix.os }}-py${{ matrix.python-version }}"
     
     - name: Set up Python ${{ matrix.python-version }}
       run: uv python install ${{ matrix.python-version }}
@@ -38,7 +40,7 @@ jobs:
           ~/.cargo/registry
           ~/.cargo/git
           target/
-        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+        key: ${{ runner.os }}-py${{ matrix.python-version }}-cargo-${{ hashFiles('**/Cargo.lock') }}
     
     - name: Install dependencies
       run: uv sync --dev
