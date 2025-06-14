@@ -1,128 +1,7 @@
 //! Core PII detection and cleaning logic without Python bindings
 
 use crate::patterns;
-use once_cell::sync::Lazy;
 use rayon::prelude::*;
-use regex::RegexSet;
-
-// Pre-compiled regex patterns for maximum performance
-static ALL_PATTERNS_COMPILED_CASE_SENSITIVE: Lazy<Vec<regex::Regex>> = Lazy::new(|| {
-    patterns::get_all_patterns()
-        .into_iter()
-        .map(|pattern| regex::Regex::new(pattern).expect("Invalid regex pattern"))
-        .collect()
-});
-
-static ALL_PATTERNS_COMPILED_CASE_INSENSITIVE: Lazy<Vec<regex::Regex>> = Lazy::new(|| {
-    patterns::get_all_patterns()
-        .into_iter()
-        .map(|pattern| {
-            regex::RegexBuilder::new(pattern)
-                .case_insensitive(true)
-                .build()
-                .expect("Invalid regex pattern")
-        })
-        .collect()
-});
-
-static ALL_PATTERNS_SET_CASE_SENSITIVE: Lazy<RegexSet> = Lazy::new(|| {
-    let pattern_strings = patterns::get_all_patterns();
-    RegexSet::new(pattern_strings).expect("Failed to create regex set")
-});
-
-static ALL_PATTERNS_SET_CASE_INSENSITIVE: Lazy<RegexSet> = Lazy::new(|| {
-    let pattern_strings = patterns::get_all_patterns();
-    regex::RegexSetBuilder::new(pattern_strings)
-        .case_insensitive(true)
-        .build()
-        .expect("Failed to create case-insensitive regex set")
-});
-
-/// Core function to detect PII patterns in text (optimised)
-pub fn detect_pii_core(text: &str, ignore_case: bool) -> Vec<(usize, usize, String)> {
-    let (patterns_set, patterns_compiled) = if ignore_case {
-        (
-            &*ALL_PATTERNS_SET_CASE_INSENSITIVE,
-            &*ALL_PATTERNS_COMPILED_CASE_INSENSITIVE,
-        )
-    } else {
-        (
-            &*ALL_PATTERNS_SET_CASE_SENSITIVE,
-            &*ALL_PATTERNS_COMPILED_CASE_SENSITIVE,
-        )
-    };
-
-    // Fast check: does this text match ANY pattern?
-    if !patterns_set.is_match(text) {
-        return Vec::new();
-    }
-
-    let mut all_matches = Vec::new();
-
-    // Only check individual patterns for texts that might have matches
-    for regex in patterns_compiled.iter() {
-        for m in regex.find_iter(text) {
-            all_matches.push((m.start(), m.end(), m.as_str().to_string()));
-        }
-    }
-
-    all_matches.sort_by_key(|&(start, _, _)| start);
-    all_matches.dedup();
-    all_matches
-}
-
-/// Core function to clean PII from text (optimised with pre-compiled patterns)
-pub fn clean_pii_core(text: &str, cleaning: &str, ignore_case: bool) -> String {
-    let (patterns_set, patterns_compiled) = if ignore_case {
-        (
-            &*ALL_PATTERNS_SET_CASE_INSENSITIVE,
-            &*ALL_PATTERNS_COMPILED_CASE_INSENSITIVE,
-        )
-    } else {
-        (
-            &*ALL_PATTERNS_SET_CASE_SENSITIVE,
-            &*ALL_PATTERNS_COMPILED_CASE_SENSITIVE,
-        )
-    };
-
-    match cleaning {
-        "replace" => {
-            // Replace: if ANY PII found, replace entire text with message
-            if patterns_set.is_match(text) {
-                return "[PII detected, comment redacted]".to_string();
-            }
-            // No PII found, return original text
-            text.to_string()
-        }
-        "redact" => {
-            // Redact: replace each PII match with dashes, keep rest of text
-            let mut result = text.to_string();
-            for regex in patterns_compiled.iter() {
-                result = regex
-                    .replace_all(&result, |caps: &regex::Captures| {
-                        "-".repeat(caps.get(0).unwrap().as_str().len())
-                    })
-                    .into_owned();
-            }
-            result
-        }
-        // TODO: should not have redact as a default. Need to fix this
-        // here, anywhere else that uses this structure, and in the
-        // Python code to validate the value of `cleaning`
-        _ => {
-            // Default to redact
-            let mut result = text.to_string();
-            for regex in patterns_compiled.iter() {
-                result = regex
-                    .replace_all(&result, |caps: &regex::Captures| {
-                        "-".repeat(caps.get(0).unwrap().as_str().len())
-                    })
-                    .into_owned();
-            }
-            result
-        }
-    }
-}
 
 /// Core function to detect PII with specific cleaners
 pub fn detect_pii_with_cleaners_core(
@@ -130,31 +9,31 @@ pub fn detect_pii_with_cleaners_core(
     cleaners: &[&str],
     ignore_case: bool,
 ) -> Vec<(usize, usize, String)> {
-    // TODO: opportunity to optimise here, could get pre-compiled
-    // regexes instead of getting the patterns and then compiling
-    // them on the fly in the for-loop below
-    let patterns = if cleaners.len() == 1 && cleaners[0] == "all" {
-        patterns::get_all_patterns()
-    } else {
-        patterns::get_patterns_by_name(cleaners)
-    };
+    let (compiled_patterns, patterns_set) = patterns::get_patterns(ignore_case);
+
+    // Early exit when using "all" cleaners
+    if cleaners.len() == 1 && cleaners[0] == "all" && !patterns_set.is_match(text) {
+        return Vec::new();
+    }
 
     let mut all_matches = Vec::new();
 
-    for pattern in patterns {
-        let re = if ignore_case {
-            regex::RegexBuilder::new(pattern)
-                .case_insensitive(true)
-                .build()
-                .unwrap()
-        } else {
-            regex::Regex::new(pattern).unwrap()
-        };
-        let matches: Vec<(usize, usize, String)> = re
-            .find_iter(text)
-            .map(|m| (m.start(), m.end(), m.as_str().to_string()))
-            .collect();
-        all_matches.extend(matches);
+    // Determine which patterns to use
+    let cleaners_to_process = if cleaners.len() == 1 && cleaners[0] == "all" {
+        compiled_patterns.keys().collect::<Vec<_>>()
+    } else {
+        cleaners.iter().collect::<Vec<_>>()
+    };
+
+    // Process each cleaner
+    for &cleaner_name in cleaners_to_process {
+        if let Some(regexes) = compiled_patterns.get(cleaner_name) {
+            for regex in regexes {
+                for m in regex.find_iter(text) {
+                    all_matches.push((m.start(), m.end(), m.as_str().to_string()));
+                }
+            }
+        }
     }
 
     all_matches.sort_by_key(|&(start, _, _)| start);
@@ -162,30 +41,7 @@ pub fn detect_pii_with_cleaners_core(
     all_matches
 }
 
-/// Vectorized function to detect PII in multiple texts at once
-pub fn detect_pii_batch_core(
-    texts: &[String],
-    ignore_case: bool,
-) -> Vec<Vec<(usize, usize, String)>> {
-    texts
-        .par_iter()
-        .map(|text| detect_pii_core(text, ignore_case))
-        .collect()
-}
-
-/// Vectorized function to clean PII from multiple texts at once
-pub fn clean_pii_batch_core(texts: &[String], cleaning: &str, ignore_case: bool) -> Vec<String> {
-    texts
-        .par_iter()
-        .map(|text| clean_pii_core(text, cleaning, ignore_case))
-        .collect()
-}
-
 /// Vectorized function to detect PII with specific cleaners for multiple texts
-// TODO: this is inefficient, regexes being compiled every time. Instead we
-// want to create a helper function like clean_pii_with_specific_patterns_core,
-// that will allow us to compile the regexes once and then pass them into the
-// iterator.
 pub fn detect_pii_with_cleaners_batch_core(
     texts: &[String],
     cleaners: &[&str],
@@ -197,67 +53,93 @@ pub fn detect_pii_with_cleaners_batch_core(
         .collect()
 }
 
-/// Vectorized function to clean PII with specific cleaners for multiple texts
-pub fn clean_pii_with_cleaners_batch_core(
-    texts: &[String],
-    cleaners: &[&str],
-    cleaning: &str,
-    ignore_case: bool,
-) -> Vec<String> {
-    // Pre-compile the specific patterns once for efficiency
-    let patterns = if cleaners.len() == 1 && cleaners[0] == "all" {
-        patterns::get_all_patterns()
-    } else {
-        patterns::get_patterns_by_name(cleaners)
-    };
-
-    let compiled_patterns: Vec<regex::Regex> = patterns
-        .into_iter()
-        .map(|pattern| {
-            if ignore_case {
-                regex::RegexBuilder::new(pattern)
-                    .case_insensitive(true)
-                    .build()
-                    .expect("Invalid regex pattern")
-            } else {
-                regex::Regex::new(pattern).expect("Invalid regex pattern")
-            }
-        })
-        .collect();
-
-    texts
-        .par_iter()
-        .map(|text| clean_pii_with_specific_patterns_core(text, &compiled_patterns, cleaning))
-        .collect()
+/// Wrapper function where cleaners == "all" to keep Python API unchanged
+#[inline]
+pub fn detect_pii_core(text: &str, ignore_case: bool) -> Vec<(usize, usize, String)> {
+    detect_pii_with_cleaners_core(text, &["all"], ignore_case)
 }
 
-/// Helper function to clean PII using pre-compiled patterns
-fn clean_pii_with_specific_patterns_core(
-    text: &str,
-    compiled_patterns: &[regex::Regex],
-    cleaning: &str,
-) -> String {
-    // Check if any pattern matches
-    let has_matches = compiled_patterns.iter().any(|regex| regex.is_match(text));
+#[derive(Copy, Clone, PartialEq)]
+pub enum Cleaning {
+    Replace,
+    Redact,
+}
 
-    if !has_matches {
-        return text.to_string();
-    }
+/// Core function to clean PII with specific cleaners
+pub fn clean_pii_with_cleaners_core(
+    text: &str,
+    cleaners: &[&str],
+    cleaning: Cleaning,
+    ignore_case: bool,
+) -> String {
+    let (compiled_patterns, patterns_set) = patterns::get_patterns(ignore_case);
 
     match cleaning {
-        "replace" => "[PII detected, comment redacted]".to_string(),
-        "redact" | _ => {
+        Cleaning::Replace => {
+            // If cleaners is "all" then we can use the regex set, otherwise
+            // need to use the compiled patterns
+            if cleaners.len() == 1 && cleaners[0] == "all" {
+                // Replace: if ANY PII found, replace entire text with message
+                if patterns_set.is_match(text) {
+                    return "[PII detected, text redacted]".to_string();
+                } else {
+                    return text.to_string();
+                }
+            } else {
+                for &cleaner_name in cleaners {
+                    if let Some(regexes) = compiled_patterns.get(cleaner_name) {
+                        for regex in regexes {
+                            if regex.is_match(text) {
+                                return "[PII detected, text redacted]".to_string();
+                            }
+                        }
+                    }
+                }
+            }
+            text.to_string()
+        }
+        Cleaning::Redact => {
+            // Determine which patterns to use
+            let cleaners_to_process = if cleaners.len() == 1 && cleaners[0] == "all" {
+                compiled_patterns.keys().collect::<Vec<_>>()
+            } else {
+                cleaners.iter().collect::<Vec<_>>()
+            };
+            // Redact: replace each PII match with dashes, keep rest of text
             let mut result = text.to_string();
-            for regex in compiled_patterns {
-                result = regex
-                    .replace_all(&result, |caps: &regex::Captures| {
-                        "-".repeat(caps.get(0).unwrap().as_str().len())
-                    })
-                    .into_owned();
+            for &cleaner_name in cleaners_to_process {
+                if let Some(regexes) = compiled_patterns.get(cleaner_name) {
+                    for regex in regexes {
+                        result = regex
+                            .replace_all(&result, |caps: &regex::Captures| {
+                                "-".repeat(caps.get(0).unwrap().as_str().len())
+                            })
+                            .into_owned();
+                    }
+                }
             }
             result
         }
     }
+}
+
+/// Vectorized function to clean PII with specific cleaners for multiple texts
+pub fn clean_pii_with_cleaners_batch_core(
+    texts: &[String],
+    cleaners: &[&str],
+    cleaning: Cleaning,
+    ignore_case: bool,
+) -> Vec<String> {
+    texts
+        .par_iter()
+        .map(|text| clean_pii_with_cleaners_core(text, cleaners, cleaning, ignore_case))
+        .collect()
+}
+
+/// Wrapper function where cleaners == "all" to keep Python API unchanged
+#[inline]
+pub fn clean_pii_core(text: &str, cleaning: Cleaning, ignore_case: bool) -> String {
+    clean_pii_with_cleaners_core(text, &["all"], cleaning, ignore_case)
 }
 
 #[cfg(test)]
@@ -270,10 +152,10 @@ mod tests {
         let result = detect_pii_core(text, false);
 
         // Should find NINO and potentially overlapping case-id pattern
-        assert!(result.len() >= 1);
+        assert!(!result.is_empty());
 
         // Find the NINO match specifically
-        let nino_match = result.iter().find(|&&(_, _, ref s)| s == "AB123456C");
+        let nino_match = result.iter().find(|&(_, _, s)| s == "AB123456C");
         assert!(nino_match.is_some(), "NINO AB123456C should be detected");
 
         let (start, end, matched) = nino_match.unwrap();
@@ -288,12 +170,10 @@ mod tests {
         let result = detect_pii_core(text, false);
 
         // May find email multiple times due to multiple patterns
-        assert!(result.len() >= 1);
+        assert!(!result.is_empty());
 
         // Find the email match specifically
-        let email_match = result
-            .iter()
-            .find(|&&(_, _, ref s)| s == "john@example.com");
+        let email_match = result.iter().find(|&(_, _, s)| s == "john@example.com");
         assert!(
             email_match.is_some(),
             "Email john@example.com should be detected"
@@ -303,7 +183,7 @@ mod tests {
     #[test]
     fn test_clean_pii_redact_mode() {
         let text = "My NINO is AB123456C";
-        let result = clean_pii_core(text, "redact", false);
+        let result = clean_pii_core(text, Cleaning::Redact, false);
 
         // Debug: see what we got
         println!("Redacted result: '{}'", result);
@@ -319,15 +199,15 @@ mod tests {
     #[test]
     fn test_clean_pii_replace_mode() {
         let text = "My NINO is AB123456C";
-        let result = clean_pii_core(text, "replace", false);
-        assert_eq!(result, "[PII detected, comment redacted]");
+        let result = clean_pii_core(text, Cleaning::Replace, false);
+        assert_eq!(result, "[PII detected, text redacted]");
     }
 
     #[test]
     fn test_clean_pii_no_pii_found() {
         let text = "No sensitive data here at all";
-        let redacted = clean_pii_core(text, "redact", false);
-        let replaced = clean_pii_core(text, "replace", false);
+        let redacted = clean_pii_core(text, Cleaning::Redact, false);
+        let replaced = clean_pii_core(text, Cleaning::Replace, false);
         assert_eq!(redacted, text);
         assert_eq!(replaced, text);
     }
@@ -338,8 +218,8 @@ mod tests {
         let result = detect_pii_core(text, false);
         assert!(result.len() >= 3);
 
-        let replaced = clean_pii_core(text, "replace", false);
-        assert_eq!(replaced, "[PII detected, comment redacted]");
+        let replaced = clean_pii_core(text, Cleaning::Replace, false);
+        assert_eq!(replaced, "[PII detected, text redacted]");
     }
 
     #[test]
@@ -350,10 +230,8 @@ mod tests {
         let email_only = detect_pii_with_cleaners_core(text, &["email"], false);
 
         // Should find email (may be duplicated by multiple email patterns)
-        assert!(email_only.len() >= 1);
-        let email_match = email_only
-            .iter()
-            .find(|&&(_, _, ref s)| s == "test@example.com");
+        assert!(!email_only.is_empty());
+        let email_match = email_only.iter().find(|&(_, _, s)| s == "test@example.com");
         assert!(
             email_match.is_some(),
             "Email should be detected with email cleaner"
@@ -369,7 +247,7 @@ mod tests {
     fn test_get_available_cleaners() {
         let registry = patterns::get_registry();
         let cleaners = registry.get_available_cleaners();
-        assert!(cleaners.len() > 0);
+        assert!(!cleaners.is_empty());
     }
 
     // Tests for the new optimised functions
@@ -386,13 +264,13 @@ mod tests {
         ];
 
         for text in test_cases {
-            for method in ["redact", "replace"] {
+            for method in [Cleaning::Redact, Cleaning::Replace] {
                 let result = clean_pii_core(text, method, false);
                 // Test that our optimised version works correctly
                 assert!(!result.is_empty() || text.is_empty());
 
-                if method == "replace" && detect_pii_core(text, false).len() > 0 {
-                    assert_eq!(result, "[PII detected, comment redacted]");
+                if method == Cleaning::Replace && !detect_pii_core(text, false).is_empty() {
+                    assert_eq!(result, "[PII detected, text redacted]");
                 }
             }
         }
@@ -407,14 +285,15 @@ mod tests {
         ];
 
         // Test batch detection
-        let batch_results = detect_pii_batch_core(&texts, false);
+        let batch_results = detect_pii_with_cleaners_batch_core(&texts, &["all"], false);
         assert_eq!(batch_results.len(), 3);
-        assert!(batch_results[0].len() >= 1); // Email
+        assert!(!batch_results[0].is_empty()); // Email
         assert_eq!(batch_results[1].len(), 0); // No PII
-        assert!(batch_results[2].len() >= 1); // NINO
+        assert!(!batch_results[2].is_empty()); // NINO
 
         // Test batch cleaning
-        let batch_cleaned = clean_pii_batch_core(&texts, "redact", false);
+        let batch_cleaned =
+            clean_pii_with_cleaners_batch_core(&texts, &["all"], Cleaning::Redact, false);
         assert_eq!(batch_cleaned.len(), 3);
         assert!(!batch_cleaned[0].contains("test1@example.com"));
         assert_eq!(batch_cleaned[1], "No PII here");
@@ -422,12 +301,13 @@ mod tests {
 
         // Test batch with specific cleaners
         let email_only = detect_pii_with_cleaners_batch_core(&texts, &["email"], false);
-        assert!(email_only[0].len() >= 1); // Should find email
+        assert!(!email_only[0].is_empty()); // Should find email
         assert_eq!(email_only[1].len(), 0); // No PII
         assert_eq!(email_only[2].len(), 0); // Should not find NINO with email cleaner
 
         // Test batch cleaning with specific cleaners
-        let email_cleaned = clean_pii_with_cleaners_batch_core(&texts, &["email"], "redact", false);
+        let email_cleaned =
+            clean_pii_with_cleaners_batch_core(&texts, &["email"], Cleaning::Redact, false);
         assert_eq!(email_cleaned.len(), 3);
         assert!(!email_cleaned[0].contains("test1@example.com")); // Email should be cleaned
         assert_eq!(email_cleaned[1], "No PII here"); // No change
@@ -438,18 +318,18 @@ mod tests {
     fn test_edge_cases() {
         // Empty string
         assert_eq!(detect_pii_core("", false), Vec::new());
-        assert_eq!(clean_pii_core("", "redact", false), "");
-        assert_eq!(clean_pii_core("", "replace", false), "");
+        assert_eq!(clean_pii_core("", Cleaning::Redact, false), "");
+        assert_eq!(clean_pii_core("", Cleaning::Replace, false), "");
 
         // Whitespace only
         assert_eq!(detect_pii_core("   ", false), Vec::new());
-        assert_eq!(clean_pii_core("   ", "redact", false), "   ");
+        assert_eq!(clean_pii_core("   ", Cleaning::Redact, false), "   ");
 
         // Very long string
         let long_text = "a".repeat(10000) + "test@example.com" + &"b".repeat(10000);
         let results = detect_pii_core(&long_text, false);
-        assert!(results.len() >= 1);
-        let cleaned = clean_pii_core(&long_text, "redact", false);
+        assert!(!results.is_empty());
+        let cleaned = clean_pii_core(&long_text, Cleaning::Redact, false);
         assert!(!cleaned.contains("test@example.com"));
 
         // Special characters
@@ -476,7 +356,7 @@ mod tests {
 
             // Should detect at least one match
             assert!(
-                results.len() >= 1,
+                !results.is_empty(),
                 "Failed to detect {} in '{}'",
                 expected_type,
                 text
@@ -493,16 +373,16 @@ mod tests {
             );
 
             // Test cleaning
-            let cleaned = clean_pii_core(&text, "redact", false);
+            let cleaned = clean_pii_core(&text, Cleaning::Redact, false);
             assert!(
                 !cleaned.contains(pii_text),
                 "Failed to clean '{}' from text",
                 pii_text
             );
 
-            let replaced = clean_pii_core(&text, "replace", false);
+            let replaced = clean_pii_core(&text, Cleaning::Replace, false);
             assert_eq!(
-                replaced, "[PII detected, comment redacted]",
+                replaced, "[PII detected, text redacted]",
                 "Replace mode failed for {}",
                 expected_type
             );
@@ -540,7 +420,7 @@ mod tests {
                     let text = format!("Email: test{}@example.com", i);
                     for _ in 0..100 {
                         let results = detect_pii_core(&text, false);
-                        assert!(results.len() >= 1);
+                        assert!(!results.is_empty());
                     }
                 })
             })
@@ -552,19 +432,10 @@ mod tests {
     }
 
     #[test]
-    fn test_invalid_cleaning_method() {
-        let text = "Email: test@example.com";
-        // Invalid method should default to redact behaviour
-        let result = clean_pii_core(text, "invalid_method", false);
-        assert!(!result.contains("test@example.com"));
-        assert!(result.contains("-") || result.starts_with("Email:"));
-    }
-
-    #[test]
     fn test_regex_pattern_validity() {
         // Ensure all patterns compile successfully
         let patterns = patterns::get_all_patterns();
-        assert!(patterns.len() > 0);
+        assert!(!patterns.is_empty());
 
         for pattern in patterns {
             let regex_result = regex::Regex::new(pattern);

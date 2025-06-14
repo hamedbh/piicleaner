@@ -2,6 +2,20 @@ use pyo3::prelude::*;
 
 pub mod core;
 pub mod patterns;
+use core::Cleaning;
+
+impl Cleaning {
+    fn from_str(s: &str) -> PyResult<Self> {
+        match s {
+            "replace" => Ok(Cleaning::Replace),
+            "redact" => Ok(Cleaning::Redact),
+            _ => Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+                "Invalid cleaning method: {}",
+                s
+            ))),
+        }
+    }
+}
 
 /// Detect PII in a string and return match information
 #[pyfunction]
@@ -14,7 +28,8 @@ pub fn detect_pii(text: &str, ignore_case: bool) -> PyResult<Vec<(usize, usize, 
 #[pyfunction]
 #[pyo3(signature = (text, cleaning, ignore_case = true))]
 pub fn clean_pii(text: &str, cleaning: &str, ignore_case: bool) -> PyResult<String> {
-    Ok(core::clean_pii_core(text, cleaning, ignore_case))
+    let cleaning_enum = Cleaning::from_str(cleaning)?;
+    Ok(core::clean_pii_core(text, cleaning_enum, ignore_case))
 }
 
 /// Detect PII with specific cleaners
@@ -52,7 +67,11 @@ pub fn detect_pii_batch(
     texts: Vec<String>,
     ignore_case: bool,
 ) -> PyResult<Vec<Vec<(usize, usize, String)>>> {
-    Ok(core::detect_pii_batch_core(&texts, ignore_case))
+    Ok(core::detect_pii_with_cleaners_batch_core(
+        &texts,
+        &["all"],
+        ignore_case,
+    ))
 }
 
 /// Vectorized clean PII for multiple texts
@@ -63,7 +82,13 @@ pub fn clean_pii_batch(
     cleaning: &str,
     ignore_case: bool,
 ) -> PyResult<Vec<String>> {
-    Ok(core::clean_pii_batch_core(&texts, cleaning, ignore_case))
+    let cleaning_enum = Cleaning::from_str(cleaning)?;
+    Ok(core::clean_pii_with_cleaners_batch_core(
+        &texts,
+        &["all"],
+        cleaning_enum,
+        ignore_case,
+    ))
 }
 
 /// Vectorized detect PII with specific cleaners for multiple texts
@@ -91,11 +116,12 @@ pub fn clean_pii_with_cleaners_batch(
     cleaning: &str,
     ignore_case: bool,
 ) -> PyResult<Vec<String>> {
+    let cleaning_enum = Cleaning::from_str(cleaning)?;
     let cleaner_refs: Vec<&str> = cleaners.iter().map(|s| s.as_str()).collect();
     Ok(core::clean_pii_with_cleaners_batch_core(
         &texts,
         &cleaner_refs,
-        cleaning,
+        cleaning_enum,
         ignore_case,
     ))
 }
