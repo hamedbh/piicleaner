@@ -67,7 +67,7 @@ class TestPolarsNamespace:
         cleaned_texts = result["cleaned_text"].to_list()
 
         # Text with PII should be replaced entirely
-        assert cleaned_texts[0] == "[PII detected, comment redacted]"
+        assert cleaned_texts[0] == "[PII detected, text redacted]"
 
         # Clean text should remain unchanged
         assert cleaned_texts[1] == "No PII here"
@@ -134,15 +134,53 @@ class TestPolarsNamespace:
         assert result["cleaned1"][1] == "No PII here"
         assert result["cleaned2"][1] == "Clean text"
 
-    def test_namespace_error_handling(self):
-        """Test namespace handles invalid cleaning methods gracefully"""
+    def test_namespace_invalid_cleaning_method(self):
+        """Test namespace raises an error for invalid cleaning method"""
         df = pl.DataFrame({"text": ["Email: john@example.com"]})
 
-        # Invalid cleaning method should default to redact
-        result = df.with_columns(
-            pl.col("text").pii.clean_pii("invalid_method").alias("cleaned")
-        )
+        # Invalid cleaning method should raise an exception
+        with pytest.raises(ValueError, match="Invalid cleaning method"):
+            df.with_columns(
+                pl.col("text").pii.clean_pii("invalid_method").alias("cleaned")
+            )
 
-        cleaned_text = result["cleaned"][0]
-        assert "john@example.com" not in cleaned_text
-        assert "-" in cleaned_text  # Should use redact as default
+    def test_invalid_cleaning_method_variations(self):
+        """Test various invalid cleaning method inputs"""
+        df = pl.DataFrame({"text": ["Email: john@example.com"]})
+
+        invalid_methods = ["REPLACE", "REDACT", "remove", "mask", "", "delete"]
+
+        for invalid_method in invalid_methods:
+            with pytest.raises(ValueError, match="Invalid cleaning method"):
+                df.with_columns(
+                    pl.col("text")
+                    .pii.clean_pii(invalid_method)
+                    .alias("cleaned")
+                )
+
+    def test_valid_cleaning_methods_case_sensitivity(self):
+        """Test that only exact case matches work for cleaning methods"""
+        df = pl.DataFrame({"text": ["Email: john@example.com"]})
+
+        # These should all fail (case sensitivity)
+        invalid_cases = ["Replace", "REPLACE", "Redact", "REDACT"]
+
+        for invalid_case in invalid_cases:
+            with pytest.raises(ValueError, match="Invalid cleaning method"):
+                df.with_columns(
+                    pl.col("text").pii.clean_pii(invalid_case).alias("cleaned")
+                )
+
+    def test_empty_and_none_cleaning_method(self):
+        """Test edge cases for cleaning method parameter"""
+        df = pl.DataFrame({"text": ["Email: john@example.com"]})
+
+        # Empty string
+        with pytest.raises(ValueError, match="Invalid cleaning method"):
+            df.with_columns(pl.col("text").pii.clean_pii("").alias("cleaned"))
+
+        # None should also fail if passed somehow
+        with pytest.raises((ValueError, TypeError)):
+            df.with_columns(
+                pl.col("text").pii.clean_pii(None).alias("cleaned")
+            )

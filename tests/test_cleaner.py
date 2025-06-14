@@ -235,6 +235,63 @@ class TestEdgeCases:
         email_matches = [m for m in matches if "user@example.com" in m["text"]]
         assert len(email_matches) >= 1
 
+    def test_invalid_cleaning_method(self):
+        """Test that invalid cleaning methods raise ValueError."""
+        cleaner = Cleaner()
+        text = "Email: john@example.com"
+
+        with pytest.raises(ValueError, match="Invalid cleaning method"):
+            cleaner.clean_pii(text, "invalid_method")
+
+    def test_invalid_cleaning_method_variations(self):
+        """Test various invalid cleaning method inputs."""
+        cleaner = Cleaner()
+        text = "Email: john@example.com"
+
+        invalid_methods = ["REPLACE", "REDACT", "remove", "mask", "", "delete"]
+
+        for invalid_method in invalid_methods:
+            with pytest.raises(ValueError, match="Invalid cleaning method"):
+                cleaner.clean_pii(text, invalid_method)
+
+    def test_cleaning_method_case_sensitivity(self):
+        """Test that cleaning methods are case sensitive."""
+        cleaner = Cleaner()
+        text = "Email: john@example.com"
+
+        # These should all fail (case sensitivity)
+        invalid_cases = ["Replace", "REPLACE", "Redact", "REDACT"]
+
+        for invalid_case in invalid_cases:
+            with pytest.raises(ValueError, match="Invalid cleaning method"):
+                cleaner.clean_pii(text, invalid_case)
+
+    def test_empty_cleaning_method(self):
+        """Test that empty string cleaning method raises ValueError."""
+        cleaner = Cleaner()
+        text = "Email: john@example.com"
+
+        with pytest.raises(ValueError, match="Invalid cleaning method"):
+            cleaner.clean_pii(text, "")
+
+    def test_none_cleaning_method(self):
+        """Test that None cleaning method raises appropriate error."""
+        cleaner = Cleaner()
+        text = "Email: john@example.com"
+
+        with pytest.raises((ValueError, TypeError)):
+            cleaner.clean_pii(text, None)
+
+    def test_invalid_cleaning_method_in_clean_list(self):
+        """Test that invalid cleaning methods in clean_list raise
+        ValueError.
+        """
+        cleaner = Cleaner()
+        text_list = ["Email: john@example.com", "Phone: +44 20 1234 5678"]
+
+        with pytest.raises(ValueError, match="Invalid cleaning method"):
+            cleaner.clean_list(text_list, "invalid_method")
+
 
 class TestSpecificCleaners:
     """Test behaviour with specific cleaner configurations."""
@@ -425,8 +482,8 @@ class TestCaseInsensitiveDetection:
         )
 
         # Both should be replaced since email patterns handle mixed case anyway
-        assert cleaned_insensitive == "[PII detected, comment redacted]"
-        assert cleaned_sensitive == "[PII detected, comment redacted]"
+        assert cleaned_insensitive == "[PII detected, text redacted]"
+        assert cleaned_sensitive == "[PII detected, text redacted]"
 
     def test_case_insensitive_default_parameter(self, cleaner):
         """Test that ignore_case defaults to True."""
