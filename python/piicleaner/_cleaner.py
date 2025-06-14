@@ -61,7 +61,7 @@ class Cleaner(PolarsCleanerMixin):
                 return string
 
             if cleaning == "replace":
-                return "[PII detected, comment redacted]"
+                return "[PII detected, text redacted]"
             else:  # redact
                 result = string
                 # Sort matches by start position in reverse to avoid index

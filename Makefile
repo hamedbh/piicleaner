@@ -27,6 +27,10 @@ clean:  ## Clean build artifacts
 	find . -name "*.so" -delete
 	find . -name "__pycache__" -delete
 
+lint: ## Lint code
+	cargo clippy
+	uv run ruff check
+
 format:  ## Format code
 	cargo fmt
 	uv run ruff format

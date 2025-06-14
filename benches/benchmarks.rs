@@ -1,5 +1,7 @@
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
-use piicleaner::core::{clean_pii_batch_core, detect_pii_batch_core};
+use piicleaner::core::{
+    clean_pii_with_cleaners_batch_core, detect_pii_with_cleaners_batch_core, Cleaning,
+};
 use std::hint::black_box;
 
 #[derive(Clone)]
@@ -105,22 +107,25 @@ fn benchmark_pii_matrix(c: &mut Criterion) {
             |b, tc| {
                 b.iter(|| match tc.operation.as_str() {
                     "detect" => {
-                        let _result = detect_pii_batch_core(
+                        let _result = detect_pii_with_cleaners_batch_core(
                             black_box(&tc.text_data),
+                            &["all"],
                             black_box(tc.ignore_case),
                         );
                     }
                     "redact" => {
-                        let _result = clean_pii_batch_core(
+                        let _result = clean_pii_with_cleaners_batch_core(
                             black_box(&tc.text_data),
-                            "redact",
+                            &["all"],
+                            Cleaning::Redact,
                             black_box(tc.ignore_case),
                         );
                     }
                     "replace" => {
-                        let _result = clean_pii_batch_core(
+                        let _result = clean_pii_with_cleaners_batch_core(
                             black_box(&tc.text_data),
-                            "replace",
+                            &["all"],
+                            Cleaning::Replace,
                             black_box(tc.ignore_case),
                         );
                     }
