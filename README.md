@@ -7,7 +7,10 @@ A fast, Rust-powered Python library for detecting and cleaning Personal Identifi
 - **Fast PII Detection**: Rust-based regex engine for high-performance text processing
 - **Case-Insensitive Matching**: Detects PII regardless of case by default, with optional case-sensitive mode
 - **Multiple PII Types**: Detects emails, phone numbers, postcodes, National Insurance numbers, addresses, and more
-- **Flexible Cleaning**: Replace or redact detected PII with customizable strategies
+- **Flexible Cleaning**: Replace or redact detected PII with customisable strategies
+- **Semantic Redaction**: Replace PII with meaningful labels like `[email-redacted]` instead of generic dashes
+- **Custom Replacement Strings**: Define your own replacement text for the "replace" cleaning method
+- **PII Type Detection**: Get detailed information about what type of PII was detected
 - **Polars Integration**: Native support for cleaning DataFrames and Series
 - **Easy to Use**: Simple API for both single strings and batch processing
 
@@ -63,13 +66,13 @@ cleaner = Cleaner()
 # Clean a single string (case-insensitive by default)
 text = "Contact John at JOHN@EXAMPLE.COM or call +44 20 7946 0958"
 cleaned = cleaner.clean_pii(text, "redact")
-print(cleaned)  # "Contact John at ---------------- or call ----------------"
+print(cleaned)  # "Contact John at [email-redacted] or call [telephone-redacted]"
 
-# Detect PII locations
+# Detect PII locations with type information
 matches = cleaner.detect_pii(text)
 print(matches)  
-# [{'start': 16, 'end': 32, 'text': 'JOHN@EXAMPLE.COM'}, 
-#  {'start': 41, 'end': 58, 'text': '+44 20 7946 0958'}]
+# [{'start': 16, 'end': 32, 'text': 'JOHN@EXAMPLE.COM', 'type': 'email'}, 
+#  {'start': 41, 'end': 58, 'text': '+44 20 7946 0958', 'type': 'telephone'}]
 
 # Case-sensitive detection
 matches_sensitive = cleaner.detect_pii("nino: ab123456c", ignore_case=False)
@@ -106,7 +109,7 @@ pii_df = cleaner.detect_dataframe(df, "text")
 print(pii_df)
 ```
 
-### Specific PII Types
+### Specific PII Types and Custom Replacement
 
 ```python
 # Use specific cleaners
@@ -116,11 +119,17 @@ phone_cleaner = Cleaner(cleaners=["telephone", "postcode"])
 # Case-insensitive cleaning with specific cleaners
 text = "EMAIL: JOHN@EXAMPLE.COM"
 cleaned = email_cleaner.clean_pii(text, "redact", ignore_case=True)
-print(cleaned)  # "EMAIL: ----------------"
+print(cleaned)  # "EMAIL: [email-redacted]"
+
+# Custom replacement string
+custom_cleaner = Cleaner(replace_string="[CONFIDENTIAL]")
+text = "Contact john@example.com"
+replaced = custom_cleaner.clean_pii(text, "replace")
+print(replaced)  # "[CONFIDENTIAL]"
 
 # See available cleaners
 print(Cleaner.get_available_cleaners())
-# ['address', 'case-id', 'cash-amount', 'email', 'nino', 'postcode', 'tag', 'telephone']
+# ['address', 'case-id', 'cash-amount', 'email', 'ip_address', 'nino', 'postcode', 'tag', 'telephone']
 ```
 
 ## Supported PII Types
@@ -138,8 +147,8 @@ print(Cleaner.get_available_cleaners())
 
 ## Cleaning Methods
 
-- **`"redact"`**: Redact the PII, replacing it with dashes (`---------`)
-- **`"replace"`**: Replace the string entirely if _any_ PII is detected
+- **`"redact"`**: Redact the PII, replacing it with semantic labels like `[email-redacted]`, `[telephone-redacted]`
+- **`"replace"`**: Replace the entire string if _any_ PII is detected (uses custom replacement string if provided)
 
 ## Case Sensitivity
 
@@ -160,12 +169,14 @@ class Cleaner(cleaners="all")
 
 **Parameters:**
 - `cleaners` (str | list[str]): PII types to detect. Use `"all"` for all types or specify a list like `["email", "telephone"]`
+- `replace_string` (str | None): Custom replacement string for "replace" cleaning method
 
 **Methods:**
-- `detect_pii(text, ignore_case=True)`: Detect PII and return match locations
+- `detect_pii(text, ignore_case=True)`: Detect PII and return match locations with type information
+- `detect_pii_list(texts, ignore_case=True)`: Detect PII in list of strings
 - `clean_pii(text, cleaning, ignore_case=True)`: Clean PII from text
-- `clean_list(text_list, cleaning, ignore_case=True)`: Clean list of strings
-- `clean_dataframe(df, column, cleaning, output_column)`: Clean Polars DataFrame
+- `clean_pii_list(texts, cleaning, ignore_case=True)`: Clean list of strings
+- `clean_dataframe(df, column, cleaning, new_column_name=None)`: Clean Polars DataFrame
 - `detect_dataframe(df, column)`: Detect PII in Polars DataFrame
 - `get_available_cleaners()`: Get list of available PII types
 
@@ -179,7 +190,7 @@ PIICleaner is built with Rust for maximum performance:
 
 ## Requirements
 
-- Python ≥ 3.9
+- Python ≥ 3.10
 - Polars ≥ 1.0.0 (optional, for DataFrame support)
 
 ## License

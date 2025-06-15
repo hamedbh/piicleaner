@@ -344,7 +344,7 @@ class TestOverlappingPatterns:
         assert any("SW1A 1AA" in text for text in pii_texts)
 
 
-class TestCleaningBehaviorEdgeCases:
+class TestCleaningBehaviourEdgeCases:
     """Test edge cases in cleaning behaviour."""
 
     @pytest.fixture
@@ -489,7 +489,7 @@ class TestPerformanceEdgeCases:
 
     @pytest.mark.performance
     def test_large_dataframe_performance(self, cleaner):
-        """Test performance with larger DataFrames to ensure vectorization."""
+        """Test performance with larger DataFrames to ensure vectorisation."""
         try:
             import time
 
@@ -499,7 +499,7 @@ class TestPerformanceEdgeCases:
 
         # Create a reasonably large DataFrame for performance testing
         # Size chosen to complete in reasonable test time while demonstrating
-        # vectorization performance improvements
+        # vectorisation performance improvements
         size = 1000
         test_data = [
             f"Email: user{i}@example.com for support" for i in range(size // 2)
@@ -524,8 +524,8 @@ class TestPerformanceEdgeCases:
             detected_df.shape[0] >= size // 2
         )  # Should detect PII in half the rows
 
-        # Performance assertions - should be fast with vectorization
-        # Expecting at least 500 rows/second (much faster than non-vectorized)
+        # Performance assertions - should be fast with vectorisation
+        # Expecting at least 500 rows/second (much faster than non-vectorised)
         min_performance = 500  # rows per second
         clean_performance = size / clean_time
         detect_performance = size / detect_time

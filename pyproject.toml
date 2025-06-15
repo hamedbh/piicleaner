@@ -11,7 +11,7 @@ description = "Fast PII detection and cleaning for text data with Polars integra
 authors = [{name = "Hamed Bastan-Hagh", email = "hamed@bastanhagh.com"}]
 license = {text = "MIT"}
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 dependencies = []
 dynamic = ["version"]
 classifiers = [
@@ -37,13 +37,14 @@ Issues = "https://github.com/hamedbh/piicleaner/issues"
 
 [project.optional-dependencies]
 polars = [
-    "polars>=1.30.0",
+    "polars>=1.0.0",
 ]
 
 [dependency-groups]
 dev = [
     "maturin>=1.8.6",
     "patchelf>=0.17.2.2 ; sys_platform == 'linux'",
+    "polars>=1.0.0",
     "pre-commit>=4.2.0",
     "pytest>=8.3.5",
     "pytest-benchmark>=5.1.0",
@@ -77,6 +78,10 @@ skip-magic-trailing-comma = false
 line-ending = "auto"
 docstring-code-format = true
 docstring-code-line-length = "dynamic"
+
+[tool.ruff.lint.isort]
+force-single-line = false
+combine-as-imports = true
 
 [tool.pytest.ini_options]
 markers = [

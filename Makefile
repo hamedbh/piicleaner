@@ -17,6 +17,7 @@ test:  ## Run tests (no performance)
 	uv run pytest -v -m "not performance"
 
 test_performance: ## Run performance and benchmarking tests
+	cargo test -- --ignored
 	uv run pytest -v -m "performance"
 	cargo bench
 
