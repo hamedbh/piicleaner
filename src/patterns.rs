@@ -142,6 +142,18 @@ pub static PATTERNS_SET_CASE_INSENSITIVE: Lazy<RegexSet> = Lazy::new(|| {
         .expect("Failed to create case-insensitive regex set")
 });
 
+/// Pre-computed replacement strings for semantic redaction
+pub static REPLACEMENT_STRINGS: Lazy<HashMap<&str, String>> = Lazy::new(|| {
+    let registry = get_registry();
+    let mut map = HashMap::new();
+
+    for cleaner_name in registry.get_available_cleaners() {
+        map.insert(cleaner_name, format!("[{}-redacted]", cleaner_name));
+    }
+
+    map
+});
+
 #[inline]
 pub fn get_patterns(
     ignore_case: bool,

@@ -36,7 +36,7 @@ class TestPolarsDataFrameMethods:
     def test_clean_dataframe_redact(self, cleaner, sample_df):
         """Test cleaning DataFrame with redact method."""
         result = cleaner.clean_dataframe(
-            sample_df, "text", "redact", "cleaned_text"
+            sample_df, "text", "redact", new_column_name="cleaned_text"
         )
 
         assert result.shape == (4, 4)  # Original columns + new column
@@ -51,7 +51,7 @@ class TestPolarsDataFrameMethods:
     def test_clean_dataframe_replace(self, cleaner, sample_df):
         """Test cleaning DataFrame with replace method."""
         result = cleaner.clean_dataframe(
-            sample_df, "text", "replace", "cleaned_text"
+            sample_df, "text", "replace", new_column_name="cleaned_text"
         )
 
         assert result.shape == (4, 4)
@@ -80,17 +80,24 @@ class TestPolarsDataFrameMethods:
         result = cleaner.detect_dataframe(sample_df, "text")
 
         assert isinstance(result, pl.DataFrame)
-        assert "row_index" in result.columns
-        assert "start" in result.columns
-        assert "end" in result.columns
+        assert "id" in result.columns
         assert "text" in result.columns
+        assert "category" in result.columns
+        assert "text_pii_detected" in result.columns
 
         # Should detect PII in rows 0, 1, 2 but not 3
-        row_indices = result["row_index"].to_list()
-        assert 0 in row_indices  # email row
-        assert 1 in row_indices  # nino row
-        assert 2 in row_indices  # phone row
-        # Row 3 might not be present if no PII detected
+        pii_lengths = (
+            result.with_columns(
+                pl.col("text_pii_detected").list.len().alias("lengths")
+            )
+            .get_column("lengths")
+            .to_list()
+        )
+        # First three results should all be > 1, i.e. something
+        # detected
+        assert all(x > 0 for x in pii_lengths[:3])
+        # Final result should be 0, i.e. no PII detected
+        assert pii_lengths[3] == 0
 
         pii_texts = result["text"].to_list()
         assert any("john@example.com" in text for text in pii_texts)
@@ -194,9 +201,7 @@ class TestPolarsNamespaceAPI:
     def test_namespace_detect_pii_with_cleaners(self, sample_df):
         """Test namespace .pii.detect_pii_with_cleaners()."""
         result = sample_df.with_columns(
-            pl.col("text")
-            .pii.detect_pii_with_cleaners(["email"])
-            .alias("email_matches")
+            pl.col("text").pii.detect_pii(["email"]).alias("email_matches")
         )
 
         matches = result["email_matches"].to_list()
@@ -249,15 +254,15 @@ class TestPolarsEdgeCases:
         assert detected.shape[0] == 0  # No rows
         # Column count may be 0 for empty results
 
-    def test_vectorized_batch_processing(self):
-        """Test vectorized DataFrame operations with larger dataset."""
+    def test_vectorised_batch_processing(self):
+        """Test vectorised DataFrame operations with larger dataset."""
         cleaner = Cleaner()
-        # Now we can handle larger datasets efficiently with vectorization
+        # Now we can handle larger datasets efficiently with vectorisation
         batch_data = ["Email: test@example.com"] * 200 + ["No PII"] * 200
         batch_df = pl.DataFrame({"text": batch_data})
 
         cleaned = cleaner.clean_dataframe(
-            batch_df, "text", "redact", "cleaned"
+            batch_df, "text", "redact", new_column_name="cleaned"
         )
         detected = cleaner.detect_dataframe(batch_df, "text")
 
@@ -308,24 +313,25 @@ class TestPolarsEdgeCases:
         )
 
         cleaned = email_cleaner.clean_dataframe(
-            df, "text", "redact", "cleaned"
+            df, "text", "redact", new_column_name="cleaned"
         )
         detected = email_cleaner.detect_dataframe(df, "text")
 
         cleaned_texts = cleaned["cleaned"].to_list()
-        detected_texts = (
-            detected["text"].to_list() if len(detected) > 0 else []
-        )
 
         # Should only clean/detect emails
         assert "alice@test.com" not in cleaned_texts[0]
         assert "+44 20 1234 5678" in cleaned_texts[0]  # Phone should remain
         assert cleaned_texts[1] == "NINO: AB123456C"  # NINO should remain
 
-        # Detection should only find emails
-        if detected_texts:
-            assert any("alice@test.com" in text for text in detected_texts)
-            assert not any(
-                "+44 20 1234 5678" in text for text in detected_texts
-            )
-            assert not any("AB123456C" in text for text in detected_texts)
+        # Detection should only find emails - check detection results column
+        detection_results = detected["text_pii_detected"].to_list()
+
+        # First row should have email detection
+        assert len(detection_results[0]) > 0, "Should detect email in 1st row"
+        detected_texts_row1 = [match["text"] for match in detection_results[0]]
+        assert "alice@test.com" in detected_texts_row1
+        assert "+44 20 1234 5678" not in detected_texts_row1
+
+        # Second row should have no detections (no email)
+        assert len(detection_results[1]) == 0, "Should not detect anything"

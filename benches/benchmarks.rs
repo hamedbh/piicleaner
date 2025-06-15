@@ -119,6 +119,7 @@ fn benchmark_pii_matrix(c: &mut Criterion) {
                             &["all"],
                             Cleaning::Redact,
                             black_box(tc.ignore_case),
+                            None,
                         );
                     }
                     "replace" => {
@@ -127,6 +128,7 @@ fn benchmark_pii_matrix(c: &mut Criterion) {
                             &["all"],
                             Cleaning::Replace,
                             black_box(tc.ignore_case),
+                            None,
                         );
                     }
                     _ => panic!("Unknown operation: {}", tc.operation),
