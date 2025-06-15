@@ -2,18 +2,33 @@
 
 def detect_pii(
     text: str, ignore_case: bool = True
-) -> list[tuple[int, int, str]]:
+) -> list[tuple[int, int, str, str]]:
     """Detect PII in a string and return match information"""
     ...
 
-def clean_pii(text: str, cleaning: str, ignore_case: bool = True) -> str:
+def clean_pii(
+    text: str,
+    cleaning: str,
+    ignore_case: bool = True,
+    replace_string: str | None = None,
+) -> str:
     """Clean PII from a string using the specified method"""
     ...
 
 def detect_pii_with_cleaners(
     text: str, cleaners: list[str], ignore_case: bool = True
-) -> list[tuple[int, int, str]]:
+) -> list[tuple[int, int, str, str]]:
     """Detect PII with specific cleaners"""
+    ...
+
+def clean_pii_with_cleaners(
+    text: str,
+    cleaners: list[str],
+    cleaning: str,
+    ignore_case: bool = True,
+    replace_string: str | None = None,
+) -> str:
+    """Clean PII with specific cleaners"""
     ...
 
 def get_available_cleaners() -> list[str]:
@@ -22,20 +37,23 @@ def get_available_cleaners() -> list[str]:
 
 def detect_pii_batch(
     texts: list[str], ignore_case: bool = True
-) -> list[list[tuple[int, int, str]]]:
-    """Vectorized detect PII for multiple texts"""
+) -> list[list[tuple[int, int, str, str]]]:
+    """Vectorised detect PII for multiple texts"""
     ...
 
 def clean_pii_batch(
-    texts: list[str], cleaning: str, ignore_case: bool = True
+    texts: list[str],
+    cleaning: str,
+    ignore_case: bool = True,
+    replace_string: str | None = None,
 ) -> list[str]:
-    """Vectorized clean PII for multiple texts"""
+    """Vectorised clean PII for multiple texts"""
     ...
 
 def detect_pii_with_cleaners_batch(
     texts: list[str], cleaners: list[str], ignore_case: bool = True
-) -> list[list[tuple[int, int, str]]]:
-    """Vectorized detect PII with specific cleaners for multiple texts"""
+) -> list[list[tuple[int, int, str, str]]]:
+    """Vectorised detect PII with specific cleaners for multiple texts"""
     ...
 
 def clean_pii_with_cleaners_batch(
@@ -43,6 +61,7 @@ def clean_pii_with_cleaners_batch(
     cleaners: list[str],
     cleaning: str,
     ignore_case: bool = True,
+    replace_string: str | None = None,
 ) -> list[str]:
-    """Vectorized clean PII with specific cleaners for multiple texts"""
+    """Vectorised clean PII with specific cleaners for multiple texts"""
     ...

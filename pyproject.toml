@@ -78,6 +78,10 @@ line-ending = "auto"
 docstring-code-format = true
 docstring-code-line-length = "dynamic"
 
+[tool.ruff.lint.isort]
+force-single-line = false
+combine-as-imports = true
+
 [tool.pytest.ini_options]
 markers = [
     "performance: marks tests as performance tests",
