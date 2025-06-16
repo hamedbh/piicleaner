@@ -10,7 +10,7 @@ class TestCleanerInitialisation:
     def test_init_default(self):
         """Test default initialisation uses all cleaners."""
         cleaner = Cleaner()
-        assert cleaner.cleaners == "all"
+        assert cleaner.cleaners == ["all"]
 
     def test_init_single_cleaner_string(self):
         """Test initialisation with single cleaner as string."""
@@ -25,7 +25,9 @@ class TestCleanerInitialisation:
 
     def test_init_invalid_type(self):
         """Test initialisation with invalid type raises TypeError."""
-        with pytest.raises(TypeError, match="Unsupported type"):
+        with pytest.raises(
+            TypeError, match="must be a string or list of strings"
+        ):
             Cleaner(123)
 
     def test_get_available_cleaners(self):
@@ -163,7 +165,7 @@ class TestPIICleaning:
             "Phone: +44 20 1234 5678",
             "No PII here",
         ]
-        cleaned = cleaner.clean_list(text_list, "redact")
+        cleaned = cleaner.clean_pii_list(text_list, "redact")
 
         assert len(cleaned) == 3
         assert "john@test.com" not in cleaned[0]
@@ -172,15 +174,15 @@ class TestPIICleaning:
 
     def test_clean_list_invalid_input(self, cleaner):
         """Test clean_list with invalid input raises TypeError."""
-        with pytest.raises(TypeError, match="string_list must be a list"):
-            cleaner.clean_list("not a list", "redact")
+        with pytest.raises(TypeError, match="Can't extract `str` to `Vec`"):
+            cleaner.clean_pii_list("not a list", "redact")
 
     def test_clean_list_invalid_elements(self, cleaner):
         """Test clean_list with non-string elements raises TypeError."""
         with pytest.raises(
-            TypeError, match="All values in list must be `str`"
+            TypeError, match="'int' object cannot be converted to 'PyString'"
         ):
-            cleaner.clean_list(
+            cleaner.clean_pii_list(
                 ["valid string", 123, "another string"], "redact"
             )
 
@@ -290,7 +292,7 @@ class TestEdgeCases:
         text_list = ["Email: john@example.com", "Phone: +44 20 1234 5678"]
 
         with pytest.raises(ValueError, match="Invalid cleaning method"):
-            cleaner.clean_list(text_list, "invalid_method")
+            cleaner.clean_pii_list(text_list, "invalid_method")
 
 
 class TestSpecificCleaners:
@@ -506,7 +508,7 @@ class TestCaseInsensitiveDetection:
         ]
 
         # Case-insensitive cleaning
-        cleaned_insensitive = cleaner.clean_list(
+        cleaned_insensitive = cleaner.clean_pii_list(
             text_list, "redact", ignore_case=True
         )
         assert len(cleaned_insensitive) == 4
@@ -516,7 +518,7 @@ class TestCaseInsensitiveDetection:
         assert cleaned_insensitive[3] == "No PII here"
 
         # Case-sensitive cleaning
-        cleaned_sensitive = cleaner.clean_list(
+        cleaned_sensitive = cleaner.clean_pii_list(
             text_list, "redact", ignore_case=False
         )
         assert len(cleaned_sensitive) == 4
