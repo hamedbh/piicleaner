@@ -508,7 +508,9 @@ class TestPerformanceEdgeCases:
 
         # Test cleaning performance
         start_time = time.time()
-        cleaned_df = cleaner.clean_dataframe(df, "text", "redact", "cleaned")
+        cleaned_df = cleaner.clean_dataframe(
+            df, "text", "redact", new_column_name="cleaned"
+        )
         clean_time = time.time() - start_time
 
         # Test detection performance
@@ -565,7 +567,7 @@ class TestPerformanceEdgeCases:
         import time
 
         # Create test data
-        test_texts = [f"Contact user{i}@test.com" for i in range(200)]
+        test_texts = [f"Contact user{i}@test.com" for i in range(2_000_000)]
 
         # Test individual calls
         start_time = time.time()
