@@ -19,15 +19,14 @@ class Cleaner(PolarsCleanerMixin, PandasCleanerMixin):
     """A Cleaner object contains methods to detect and clean Personal
     Identifiable Information (PII) from text data using regex patterns.
 
-    :param cleaners: The cleaners to use. Default "all" uses all
-        available cleaners. Available cleaners include: "email", "postcode",
-        "telephone", "nino", "address", "cash-amount", "case-id",
-        "tag", "ip_address"
-    :type cleaners: str or list[str], default is "all"
-    :param replace_string: Custom replacement string for "replace"
-        cleaning method. If None, uses default "[PII detected, text
-        redacted]"
-    :type replace_string: str or None, default is None
+    Args:
+        cleaners (str | list[str]): The cleaners to use. Default "all" uses all
+            available cleaners. Available cleaners include: "email", "postcode",
+            "telephone", "nino", "address", "cash-amount", "case-id",
+            "tag", "ip_address". Defaults to "all".
+        replace_string (str | None): Custom replacement string for "replace"
+            cleaning method. If None, uses default "[PII detected, text
+            redacted]". Defaults to None.
     """
 
     def __init__(
@@ -37,8 +36,10 @@ class Cleaner(PolarsCleanerMixin, PandasCleanerMixin):
     ):
         """Cleaner initialisation.
 
-        :param cleaners: PII types to detect/clean
-        :param replace_string: Custom replacement text for "replace" mode
+        Args:
+            cleaners (str | list[str]): PII types to detect/clean.
+            replace_string (str | None): Custom replacement text for
+                "replace" mode.
         """
         if isinstance(cleaners, str):
             if cleaners == "all":
@@ -57,9 +58,14 @@ class Cleaner(PolarsCleanerMixin, PandasCleanerMixin):
     ) -> list[dict[str, str | int]]:
         """Detect PII in a string and return match information.
 
-        :param string: Text to analyse for PII
-        :param ignore_case: Whether to ignore case when matching patterns
-        :return: List of dictionaries with keys 'start', 'end', 'text', 'type'
+        Args:
+            string (str): Text to analyse for PII.
+            ignore_case (bool): Whether to ignore case when matching patterns.
+                Defaults to True.
+
+        Returns:
+            list[dict[str, str | int]]: List of dictionaries with keys 'start',
+                'end', 'text', 'type'.
         """
         if self.cleaners == ["all"]:
             matches = _detect_pii(string, ignore_case)
@@ -79,10 +85,14 @@ class Cleaner(PolarsCleanerMixin, PandasCleanerMixin):
     ) -> list[list[dict[str, str | int]]]:
         """Detect PII in a list of strings and return match information.
 
-        :param texts: List of strings to analyse for PII
-        :param ignore_case: Whether to ignore case when matching patterns
-        :return: List of lists of dictionaries with keys 'start',
-            'end', 'text', 'type'
+        Args:
+            texts (list[str]): List of strings to analyse for PII.
+            ignore_case (bool): Whether to ignore case when matching patterns.
+                Defaults to True.
+
+        Returns:
+            list[list[dict[str, str | int]]]: List of lists of dictionaries with
+                keys 'start', 'end', 'text', 'type'.
         """
         if self.cleaners == ["all"]:
             matches = _detect_pii_batch(texts, ignore_case)
@@ -108,10 +118,14 @@ class Cleaner(PolarsCleanerMixin, PandasCleanerMixin):
     ) -> str:
         """Clean PII from a string.
 
-        :param text: Text to clean
-        :param cleaning: Cleaning method - either "redact" or "replace"
-        :param ignore_case: Whether to ignore case when matching patterns
-        :return: Cleaned text with PII removed or redacted
+        Args:
+            text (str): Text to clean.
+            cleaning (str): Cleaning method - either "redact" or "replace".
+            ignore_case (bool): Whether to ignore case when matching patterns.
+                Defaults to True.
+
+        Returns:
+            str: Cleaned text with PII removed or redacted.
         """
         # Use cleaner-specific cleaning if not using all patterns
         if self.cleaners == ["all"]:
@@ -129,10 +143,14 @@ class Cleaner(PolarsCleanerMixin, PandasCleanerMixin):
     ) -> list[str]:
         """Clean PII from a list of strings.
 
-        :param texts: List of strings to clean
-        :param cleaning: Cleaning method to use ("redact" or "replace")
-        :param ignore_case: Whether to ignore case when detecting PII
-        :return: List of cleaned strings
+        Args:
+            texts (list[str]): List of strings to clean.
+            cleaning (str): Cleaning method to use ("redact" or "replace").
+            ignore_case (bool): Whether to ignore case when detecting PII.
+                Defaults to True.
+
+        Returns:
+            list[str]: List of cleaned strings.
         """
         if self.cleaners == ["all"]:
             return _clean_pii_batch(
@@ -149,5 +167,9 @@ class Cleaner(PolarsCleanerMixin, PandasCleanerMixin):
 
     @staticmethod
     def get_available_cleaners():
-        """Get list of available cleaner names"""
+        """Get list of available cleaner names.
+
+        Returns:
+            list[str]: Sorted list of available cleaner names.
+        """
         return sorted(get_available_cleaners())

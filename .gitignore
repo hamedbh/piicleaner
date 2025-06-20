@@ -14,3 +14,6 @@ venv/
 
 # Maturin build
 *.whl
+
+# Documentation build artifacts
+docs/_build/
