@@ -1,21 +1,21 @@
-"""Tests for Polars DataFrame integration functionality."""
+"""Tests for Pandas DataFrame integration functionality."""
 
 import pytest
 
-# Skip all tests if polars is not available
-pytest.importorskip("polars")
+# Skip all tests if pandas is not available
+pytest.importorskip("pandas")
 
-import polars as pl
+import pandas as pd
 from piicleaner import Cleaner
 
 
-class TestPolarsDataFrameMethods:
+class TestPandasDataFrameMethods:
     """Test Cleaner class DataFrame methods."""
 
     @pytest.fixture
     def sample_df(self):
         """Sample DataFrame with PII data for testing."""
-        return pl.DataFrame(
+        return pd.DataFrame(
             {
                 "id": [1, 2, 3, 4],
                 "text": [
@@ -35,14 +35,14 @@ class TestPolarsDataFrameMethods:
 
     def test_clean_dataframe_redact(self, cleaner, sample_df):
         """Test cleaning DataFrame with redact method."""
-        result = cleaner.clean_dataframe(
+        result = cleaner.clean_pandas_dataframe(
             sample_df, "text", "redact", new_column_name="cleaned_text"
         )
 
         assert result.shape == (4, 4)  # Original columns + new column
         assert "cleaned_text" in result.columns
 
-        cleaned_texts = result["cleaned_text"].to_list()
+        cleaned_texts = result["cleaned_text"].tolist()
         assert "john@example.com" not in cleaned_texts[0]
         assert "AB123456C" not in cleaned_texts[1]
         assert "+44 20 7946 0958" not in cleaned_texts[2]
@@ -50,12 +50,12 @@ class TestPolarsDataFrameMethods:
 
     def test_clean_dataframe_replace(self, cleaner, sample_df):
         """Test cleaning DataFrame with replace method."""
-        result = cleaner.clean_dataframe(
+        result = cleaner.clean_pandas_dataframe(
             sample_df, "text", "replace", new_column_name="cleaned_text"
         )
 
         assert result.shape == (4, 4)
-        cleaned_texts = result["cleaned_text"].to_list()
+        cleaned_texts = result["cleaned_text"].tolist()
 
         # Replace method should change entire string if PII found
         assert cleaned_texts[0] != "Contact john@example.com for help"
@@ -65,41 +65,35 @@ class TestPolarsDataFrameMethods:
 
     def test_clean_dataframe_overwrite_column(self, cleaner, sample_df):
         """Test cleaning DataFrame by overwriting original column."""
-        original_texts = sample_df["text"].to_list()
-        result = cleaner.clean_dataframe(sample_df, "text", "redact")
+        original_texts = sample_df["text"].tolist()
+        result = cleaner.clean_pandas_dataframe(sample_df, "text", "redact")
 
         assert result.shape == sample_df.shape
         assert "text" in result.columns
 
-        new_texts = result["text"].to_list()
+        new_texts = result["text"].tolist()
         assert new_texts != original_texts
         assert "john@example.com" not in new_texts[0]
 
     def test_detect_dataframe(self, cleaner, sample_df):
         """Test PII detection in DataFrame."""
-        result = cleaner.detect_dataframe(sample_df, "text")
+        result = cleaner.detect_pandas_dataframe(sample_df, "text")
 
-        assert isinstance(result, pl.DataFrame)
+        assert isinstance(result, pd.DataFrame)
         assert "id" in result.columns
         assert "text" in result.columns
         assert "category" in result.columns
         assert "text_pii_detected" in result.columns
 
         # Should detect PII in rows 0, 1, 2 but not 3
-        pii_lengths = (
-            result.with_columns(
-                pl.col("text_pii_detected").list.len().alias("lengths")
-            )
-            .get_column("lengths")
-            .to_list()
-        )
-        # First three results should all be > 1, i.e. something
-        # detected
+        pii_lengths = [len(matches) for matches in result["text_pii_detected"]]
+
+        # First three results should all be > 0, i.e. something detected
         assert all(x > 0 for x in pii_lengths[:3])
         # Final result should be 0, i.e. no PII detected
         assert pii_lengths[3] == 0
 
-        pii_texts = result["text"].to_list()
+        pii_texts = result["text"].tolist()
         assert any("john@example.com" in text for text in pii_texts)
         assert any("AB123456C" in text for text in pii_texts)
         assert any("+44 20 7946 0958" in text for text in pii_texts)
@@ -107,31 +101,33 @@ class TestPolarsDataFrameMethods:
     def test_clean_dataframe_invalid_column(self, cleaner, sample_df):
         """Test error when column doesn't exist."""
         with pytest.raises(ValueError, match="Column 'nonexistent' not found"):
-            cleaner.clean_dataframe(sample_df, "nonexistent", "redact")
+            cleaner.clean_pandas_dataframe(sample_df, "nonexistent", "redact")
 
     def test_detect_dataframe_invalid_column(self, cleaner, sample_df):
         """Test error when column doesn't exist."""
         with pytest.raises(ValueError, match="Column 'nonexistent' not found"):
-            cleaner.detect_dataframe(sample_df, "nonexistent")
+            cleaner.detect_pandas_dataframe(sample_df, "nonexistent")
 
     def test_clean_dataframe_invalid_df_type(self, cleaner):
         """Test error with non-DataFrame input."""
-        with pytest.raises(TypeError, match="df must be a polars DataFrame"):
-            cleaner.clean_dataframe(["not", "a", "dataframe"], "text", "redact")
+        with pytest.raises(TypeError, match="df must be a pandas DataFrame"):
+            cleaner.clean_pandas_dataframe(
+                ["not", "a", "dataframe"], "text", "redact"
+            )
 
     def test_detect_dataframe_invalid_df_type(self, cleaner):
         """Test error with non-DataFrame input."""
-        with pytest.raises(TypeError, match="df must be a polars DataFrame"):
-            cleaner.detect_dataframe({"not": "a dataframe"}, "text")
+        with pytest.raises(TypeError, match="df must be a pandas DataFrame"):
+            cleaner.detect_pandas_dataframe({"not": "a dataframe"}, "text")
 
 
-class TestPolarsNamespaceAPI:
-    """Test Polars namespace API (.pii.* methods)."""
+class TestPandasSeriesAccessor:
+    """Test Pandas Series accessor API (.pii.* methods)."""
 
     @pytest.fixture
     def sample_df(self):
-        """Sample DataFrame for namespace testing."""
-        return pl.DataFrame(
+        """Sample DataFrame for accessor testing."""
+        return pd.DataFrame(
             {
                 "text": [
                     "Email: alice@company.com",
@@ -142,29 +138,25 @@ class TestPolarsNamespaceAPI:
             }
         )
 
-    def test_namespace_clean_pii_redact(self, sample_df):
-        """Test namespace .pii.clean_pii() with redact."""
-        result = sample_df.with_columns(
-            pl.col("text").pii.clean_pii("redact").alias("cleaned")
-        )
+    def test_accessor_clean_pii_redact(self, sample_df):
+        """Test accessor .pii.clean_pii() with redact."""
+        result = sample_df["text"].pii.clean_pii("redact")
 
-        assert result.shape == (4, 2)
-        assert "cleaned" in result.columns
+        assert isinstance(result, pd.Series)
+        assert len(result) == 4
 
-        cleaned_texts = result["cleaned"].to_list()
+        cleaned_texts = result.tolist()
         assert "alice@company.com" not in cleaned_texts[0]
         assert "+44 20 1234 5678" not in cleaned_texts[1]
         assert "JK987654D" not in cleaned_texts[2]
         assert cleaned_texts[3] == "Clean text here"
 
-    def test_namespace_clean_pii_replace(self, sample_df):
-        """Test namespace .pii.clean_pii() with replace."""
-        result = sample_df.with_columns(
-            pl.col("text").pii.clean_pii("replace").alias("cleaned")
-        )
+    def test_accessor_clean_pii_replace(self, sample_df):
+        """Test accessor .pii.clean_pii() with replace."""
+        result = sample_df["text"].pii.clean_pii("replace")
 
-        cleaned_texts = result["cleaned"].to_list()
-        original_texts = sample_df["text"].to_list()
+        cleaned_texts = result.tolist()
+        original_texts = sample_df["text"].tolist()
 
         # Should change strings with PII
         assert cleaned_texts[0] != original_texts[0]
@@ -172,18 +164,16 @@ class TestPolarsNamespaceAPI:
         assert cleaned_texts[2] != original_texts[2]
         assert cleaned_texts[3] == original_texts[3]  # No change
 
-    def test_namespace_detect_pii(self, sample_df):
-        """Test namespace .pii.detect_pii()."""
-        result = sample_df.with_columns(
-            pl.col("text").pii.detect_pii().alias("pii_matches")
-        )
+    def test_accessor_detect_pii(self, sample_df):
+        """Test accessor .pii.detect_pii()."""
+        result = sample_df["text"].pii.detect_pii()
 
-        assert result.shape == (4, 2)
-        assert "pii_matches" in result.columns
+        assert isinstance(result, pd.Series)
+        assert len(result) == 4
 
-        matches = result["pii_matches"].to_list()
+        matches = result.tolist()
 
-        # Check that matches are returned as list of structs
+        # Check that matches are returned as list of dicts
         assert isinstance(matches[0], list)  # Email row should have matches
         assert isinstance(matches[1], list)  # Phone row should have matches
         assert isinstance(matches[2], list)  # NINO row should have matches
@@ -195,14 +185,13 @@ class TestPolarsNamespaceAPI:
             assert "start" in match
             assert "end" in match
             assert "text" in match
+            assert "type" in match
 
-    def test_namespace_detect_pii_with_cleaners(self, sample_df):
-        """Test namespace .pii.detect_pii_with_cleaners()."""
-        result = sample_df.with_columns(
-            pl.col("text").pii.detect_pii(["email"]).alias("email_matches")
-        )
+    def test_accessor_detect_pii_with_cleaners(self, sample_df):
+        """Test accessor .pii.detect_pii() with specific cleaners."""
+        result = sample_df["text"].pii.detect_pii(["email"])
 
-        matches = result["email_matches"].to_list()
+        matches = result.tolist()
 
         # Should only detect email, not phone or NINO
         assert len(matches[0]) >= 1  # Email row should have matches
@@ -213,85 +202,72 @@ class TestPolarsNamespaceAPI:
             email_match_text = matches[0][0]["text"]
             assert "@" in email_match_text
 
-    def test_namespace_with_null_values(self):
-        """Test namespace API handles null values correctly."""
-        df = pl.DataFrame(
+    def test_accessor_with_null_values(self):
+        """Test accessor API handles null values correctly."""
+        df = pd.DataFrame(
             {"text": ["Email: test@example.com", None, "Clean text"]}
         )
 
-        result = df.with_columns(
-            [
-                pl.col("text").pii.clean_pii("redact").alias("cleaned"),
-                pl.col("text").pii.detect_pii().alias("detected"),
-            ]
-        )
+        cleaned = df["text"].pii.clean_pii("redact")
+        detected = df["text"].pii.detect_pii()
 
-        cleaned = result["cleaned"].to_list()
-        detected = result["detected"].to_list()
+        assert pd.isna(cleaned.iloc[1])  # Null should remain null
+        assert detected.iloc[1] == []  # Null should return empty list
 
-        assert cleaned[1] is None  # Null should remain null
-        assert detected[1] is None  # Null should return None, not empty list
-
-        assert "test@example.com" not in cleaned[0]
-        assert cleaned[2] == "Clean text"
+        assert "test@example.com" not in cleaned.iloc[0]
+        assert cleaned.iloc[2] == "Clean text"
 
 
-class TestPolarsEdgeCases:
-    """Test edge cases and error conditions for Polars integration."""
+class TestPandasEdgeCases:
+    """Test edge cases and error conditions for Pandas integration."""
 
     def test_empty_dataframe(self):
         """Test with empty DataFrame."""
         cleaner = Cleaner()
-        empty_df = pl.DataFrame({"text": []})
+        empty_df = pd.DataFrame({"text": []})
 
-        cleaned = cleaner.clean_dataframe(empty_df, "text", "redact")
-        detected = cleaner.detect_dataframe(empty_df, "text")
+        cleaned = cleaner.clean_pandas_dataframe(empty_df, "text", "redact")
+        detected = cleaner.detect_pandas_dataframe(empty_df, "text")
 
         assert cleaned.shape == (0, 1)
-        # Empty DataFrame detection returns empty DataFrame with no columns
         assert detected.shape[0] == 0  # No rows
-        # Column count may be 0 for empty results
 
     def test_vectorised_batch_processing(self):
         """Test vectorised DataFrame operations with larger dataset."""
         cleaner = Cleaner()
-        # Now we can handle larger datasets efficiently with vectorisation
+        # Test with larger dataset to ensure vectorisation works
         batch_data = ["Email: test@example.com"] * 200 + ["No PII"] * 200
-        batch_df = pl.DataFrame({"text": batch_data})
+        batch_df = pd.DataFrame({"text": batch_data})
 
-        cleaned = cleaner.clean_dataframe(
+        cleaned = cleaner.clean_pandas_dataframe(
             batch_df, "text", "redact", new_column_name="cleaned"
         )
-        detected = cleaner.detect_dataframe(batch_df, "text")
+        detected = cleaner.detect_pandas_dataframe(batch_df, "text")
 
         assert cleaned.shape == (400, 2)
         assert detected.shape[0] >= 200  # Should detect PII in first 200 rows
 
-        cleaned_texts = cleaned["cleaned"].to_list()
+        cleaned_texts = cleaned["cleaned"].tolist()
         # First 200 should be cleaned, last 200 unchanged
         assert "test@example.com" not in cleaned_texts[0]
         assert cleaned_texts[399] == "No PII"
 
     def test_multiple_columns_cleaning(self):
         """Test cleaning multiple columns."""
-        df = pl.DataFrame(
+        df = pd.DataFrame(
             {
                 "emails": ["Contact alice@test.com", "No email here"],
                 "phones": ["Call +44 20 1234 5678", "No phone here"],
             }
         )
 
-        # Clean both columns
-        result = df.with_columns(
-            [
-                pl.col("emails").pii.clean_pii("redact").alias("clean_emails"),
-                pl.col("phones").pii.clean_pii("redact").alias("clean_phones"),
-            ]
-        )
+        # Clean both columns using accessor
+        df["clean_emails"] = df["emails"].pii.clean_pii("redact")
+        df["clean_phones"] = df["phones"].pii.clean_pii("redact")
 
-        assert result.shape == (2, 4)
-        clean_emails = result["clean_emails"].to_list()
-        clean_phones = result["clean_phones"].to_list()
+        assert df.shape == (2, 4)
+        clean_emails = df["clean_emails"].tolist()
+        clean_phones = df["clean_phones"].tolist()
 
         assert "alice@test.com" not in clean_emails[0]
         assert "+44 20 1234 5678" not in clean_phones[0]
@@ -301,7 +277,7 @@ class TestPolarsEdgeCases:
     def test_specific_cleaners_dataframe(self):
         """Test DataFrame methods with specific cleaners."""
         email_cleaner = Cleaner(["email"])
-        df = pl.DataFrame(
+        df = pd.DataFrame(
             {
                 "text": [
                     "Email alice@test.com and call +44 20 1234 5678",
@@ -310,12 +286,12 @@ class TestPolarsEdgeCases:
             }
         )
 
-        cleaned = email_cleaner.clean_dataframe(
+        cleaned = email_cleaner.clean_pandas_dataframe(
             df, "text", "redact", new_column_name="cleaned"
         )
-        detected = email_cleaner.detect_dataframe(df, "text")
+        detected = email_cleaner.detect_pandas_dataframe(df, "text")
 
-        cleaned_texts = cleaned["cleaned"].to_list()
+        cleaned_texts = cleaned["cleaned"].tolist()
 
         # Should only clean/detect emails
         assert "alice@test.com" not in cleaned_texts[0]
@@ -323,7 +299,7 @@ class TestPolarsEdgeCases:
         assert cleaned_texts[1] == "NINO: AB123456C"  # NINO should remain
 
         # Detection should only find emails - check detection results column
-        detection_results = detected["text_pii_detected"].to_list()
+        detection_results = detected["text_pii_detected"].tolist()
 
         # First row should have email detection
         assert len(detection_results[0]) > 0, "Should detect email in 1st row"
@@ -334,25 +310,28 @@ class TestPolarsEdgeCases:
         # Second row should have no detections (no email)
         assert len(detection_results[1]) == 0, "Should not detect anything"
 
-    def test_dataframe_methods_with_null_values(self):
-        """Test DataFrame methods handle null values correctly."""
-        cleaner = Cleaner()
-        df_with_nulls = pl.DataFrame(
-            {"text": ["Email: test@example.com", None, "Clean text"]}
+    def test_custom_replacement_string(self):
+        """Test custom replacement string functionality."""
+        custom_cleaner = Cleaner(replace_string="[REDACTED]")
+        df = pd.DataFrame(
+            {
+                "text": [
+                    "Email: test@example.com",
+                    "No PII here",
+                ]
+            }
         )
 
-        # Test cleaning
-        cleaned = cleaner.clean_dataframe(df_with_nulls, "text", "redact")
-        cleaned_texts = cleaned["text"].to_list()
+        result = custom_cleaner.clean_pandas_dataframe(df, "text", "replace")
+        cleaned_texts = result["text"].tolist()
 
-        assert "test@example.com" not in cleaned_texts[0]
-        assert cleaned_texts[1] is None  # Null should remain null
-        assert cleaned_texts[2] == "Clean text"
+        # Row with PII should use custom replacement string
+        assert cleaned_texts[0] == "[REDACTED]"
+        assert cleaned_texts[1] == "No PII here"  # No PII unchanged
 
-        # Test detection
-        detected = cleaner.detect_dataframe(df_with_nulls, "text")
-        detection_results = detected["text_pii_detected"].to_list()
-
-        assert len(detection_results[0]) > 0  # Should detect email
-        assert detection_results[1] == []  # Null should give empty list
-        assert detection_results[2] == []  # Clean text should give empty list
+        # Test with Series accessor
+        series_result = df["text"].pii.clean_pii(
+            "replace", replace_string="***REMOVED***"
+        )
+        assert series_result.iloc[0] == "***REMOVED***"
+        assert series_result.iloc[1] == "No PII here"

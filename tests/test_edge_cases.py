@@ -153,9 +153,7 @@ class TestSpecialCharacters:
             email_matches = [
                 m for m in matches if "test@example.com" in m["text"]
             ]
-            assert len(email_matches) >= 1, (
-                f"Failed to detect email in: {text}"
-            )
+            assert len(email_matches) >= 1, f"Failed to detect email in: {text}"
 
     def test_unicode_characters(self, cleaner):
         """Test with unicode characters."""
@@ -578,7 +576,7 @@ class TestPerformanceEdgeCases:
 
         # Test batch call
         start_time = time.time()
-        batch_results = cleaner.clean_list(test_texts, "redact")
+        batch_results = cleaner.clean_pii_list(test_texts, "redact")
         batch_time = time.time() - start_time
 
         # Verify results are identical

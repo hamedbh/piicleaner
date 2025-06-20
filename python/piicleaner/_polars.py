@@ -47,7 +47,18 @@ class PolarsCleanerMixin:
 
         # Use the clean_pii_list method which respects specific cleaners
         texts = df.get_column(column_name).to_list()
-        cleaned_texts = self.clean_pii_list(texts, cleaning, ignore_case)
+        # Handle null values - replace with empty strings for processing
+        processed_texts = [
+            str(text) if text is not None else "" for text in texts
+        ]
+        cleaned_texts = self.clean_pii_list(
+            processed_texts, cleaning, ignore_case
+        )
+
+        # Restore null values in the results
+        for i, original_text in enumerate(texts):
+            if original_text is None:
+                cleaned_texts[i] = None
 
         # Create new DataFrame with cleaned column
         if new_column_name is None:
@@ -90,7 +101,16 @@ class PolarsCleanerMixin:
 
         # Get texts and use Cleaner's detect_pii_list method
         texts = df.get_column(column_name).to_list()
-        batch_results = self.detect_pii_list(texts, ignore_case)
+        # Handle null values - replace with empty strings for processing
+        processed_texts = [
+            str(text) if text is not None else "" for text in texts
+        ]
+        batch_results = self.detect_pii_list(processed_texts, ignore_case)
+
+        # Set empty results for null values
+        for i, original_text in enumerate(texts):
+            if original_text is None:
+                batch_results[i] = []
 
         # Convert to Polars list of structs format
         detection_results = []
