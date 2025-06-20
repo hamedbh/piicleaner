@@ -1,4 +1,4 @@
-.PHONY: help dev check build test test_performance test_all clean format
+.PHONY: help dev check build docs test test_performance test_all clean format
 
 help:  ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
@@ -11,6 +11,10 @@ check:  ## Check Rust code
 
 build:  ## Build release version
 	uv run maturin build --release
+
+docs: ## Render the docs
+	uv export --only-group dev -o docs/requirements.txt
+	uv run --directory docs sphinx-build -b html . _build/html
 
 test:  ## Run tests (no performance)
 	cargo test

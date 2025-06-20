@@ -26,15 +26,19 @@ class PolarsCleanerMixin:
         ignore_case: bool = True,
         new_column_name: str = None,
     ):
-        """Clean PII in a Polars DataFrame column
+        """Clean PII in a Polars DataFrame column.
 
-        :param df: Polars DataFrame
-        :param column_name: Name of the column to clean
-        :param cleaning: Cleaning method ("redact" or "replace")
-        :param ignore_case: Should we ignore case when detecting PII?
-        :param new_column_name: Name for the new cleaned column. If
-            None, overwrites original
-        :return: DataFrame with cleaned column
+        Args:
+            df (pl.DataFrame): Polars DataFrame.
+            column_name (str): Name of the column to clean.
+            cleaning (str): Cleaning method ("redact" or "replace").
+            ignore_case (bool): Should we ignore case when detecting PII?
+                Defaults to True.
+            new_column_name (str | None): Name for the new cleaned column. If
+                None, overwrites original. Defaults to None.
+
+        Returns:
+            pl.DataFrame: DataFrame with cleaned column.
         """
         if not POLARS_AVAILABLE:
             raise ImportError("polars is required for DataFrame operations")
@@ -77,14 +81,19 @@ class PolarsCleanerMixin:
         ignore_case: bool = True,
         new_column_name: str = None,
     ):
-        """Detect PII in a Polars DataFrame column
+        """Detect PII in a Polars DataFrame column.
 
-        :param df: Polars DataFrame
-        :param column_name: Name of the column to analyse
-        :param ignore_case: Should we ignore case when detecting PII?
-        :param new_column_name: Name for the new detection column. If
-            None, uses "{column_name}_pii_detected"
-        :return: DataFrame with detection results added as a list column
+        Args:
+            df (pl.DataFrame): Polars DataFrame.
+            column_name (str): Name of the column to analyse.
+            ignore_case (bool): Should we ignore case when detecting PII?
+                Defaults to True.
+            new_column_name (str | None): Name for the new detection column. If
+                None, uses "{column_name}_pii_detected". Defaults to None.
+
+        Returns:
+            pl.DataFrame: DataFrame with detection results added as a
+                list column.
         """
         if not POLARS_AVAILABLE:
             raise ImportError("polars is required for DataFrame operations")
