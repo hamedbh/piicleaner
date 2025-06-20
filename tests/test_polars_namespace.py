@@ -181,6 +181,4 @@ class TestPolarsNamespace:
 
         # None should also fail if passed somehow
         with pytest.raises((ValueError, TypeError)):
-            df.with_columns(
-                pl.col("text").pii.clean_pii(None).alias("cleaned")
-            )
+            df.with_columns(pl.col("text").pii.clean_pii(None).alias("cleaned"))

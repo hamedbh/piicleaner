@@ -119,6 +119,4 @@ def test_clean_large_list(
     benchmark, cleaner, large_string_list, operation, ignore_case
 ):
     """Benchmark batch cleaning operations on large lists."""
-    benchmark(
-        cleaner.clean_pii_list, large_string_list, operation, ignore_case
-    )
+    benchmark(cleaner.clean_pii_list, large_string_list, operation, ignore_case)

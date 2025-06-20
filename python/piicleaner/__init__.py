@@ -30,6 +30,15 @@ try:
 except ImportError:
     pass
 
+# Import Pandas integration if available
+try:
+    import importlib.util
+
+    if importlib.util.find_spec("pandas") is not None:
+        from . import _pandas_plugin  # noqa: F401
+except ImportError:
+    pass
+
 __all__ = [
     "detect_pii",
     "detect_pii_batch",

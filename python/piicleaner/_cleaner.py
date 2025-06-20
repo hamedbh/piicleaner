@@ -11,10 +11,11 @@ from piicleaner._internal import (
     detect_pii_with_cleaners_batch as _detect_pii_with_cleaners_batch,
     get_available_cleaners,
 )
+from piicleaner._pandas import PandasCleanerMixin
 from piicleaner._polars import PolarsCleanerMixin
 
 
-class Cleaner(PolarsCleanerMixin):
+class Cleaner(PolarsCleanerMixin, PandasCleanerMixin):
     """A Cleaner object contains methods to detect and clean Personal
     Identifiable Information (PII) from text data using regex patterns.
 
