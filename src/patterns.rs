@@ -1,8 +1,8 @@
 //! PII regex patterns
 
-use once_cell::sync::Lazy;
 use regex::{Regex, RegexBuilder, RegexSet, RegexSetBuilder};
 use std::collections::HashMap;
+use std::sync::LazyLock;
 
 pub struct PatternRegistry {
     patterns: HashMap<&'static str, Vec<&'static str>>,
@@ -94,47 +94,49 @@ pub fn get_patterns_by_name(cleaners: &[&str]) -> Vec<&'static str> {
     get_registry().get_patterns_by_name(cleaners)
 }
 
-pub static PATTERNS_COMPILED_CASE_SENSITIVE: Lazy<HashMap<&str, Vec<Regex>>> = Lazy::new(|| {
-    let registry = get_registry();
-    let mut map = HashMap::new();
+pub static PATTERNS_COMPILED_CASE_SENSITIVE: LazyLock<HashMap<&str, Vec<Regex>>> =
+    LazyLock::new(|| {
+        let registry = get_registry();
+        let mut map = HashMap::new();
 
-    for cleaner_name in registry.get_available_cleaners() {
-        let patterns = registry.get_patterns_by_name(&[cleaner_name]);
-        let compiled: Vec<Regex> = patterns
-            .into_iter()
-            .map(|p| Regex::new(p).expect("Invalid regex"))
-            .collect();
-        map.insert(cleaner_name, compiled);
-    }
-    map
-});
+        for cleaner_name in registry.get_available_cleaners() {
+            let patterns = registry.get_patterns_by_name(&[cleaner_name]);
+            let compiled: Vec<Regex> = patterns
+                .into_iter()
+                .map(|p| Regex::new(p).expect("Invalid regex"))
+                .collect();
+            map.insert(cleaner_name, compiled);
+        }
+        map
+    });
 
-pub static PATTERNS_COMPILED_CASE_INSENSITIVE: Lazy<HashMap<&str, Vec<Regex>>> = Lazy::new(|| {
-    let registry = get_registry();
-    let mut map = HashMap::new();
+pub static PATTERNS_COMPILED_CASE_INSENSITIVE: LazyLock<HashMap<&str, Vec<Regex>>> =
+    LazyLock::new(|| {
+        let registry = get_registry();
+        let mut map = HashMap::new();
 
-    for cleaner_name in registry.get_available_cleaners() {
-        let patterns = registry.get_patterns_by_name(&[cleaner_name]);
-        let compiled: Vec<Regex> = patterns
-            .into_iter()
-            .map(|p| {
-                RegexBuilder::new(p)
-                    .case_insensitive(true)
-                    .build()
-                    .expect("Invalid regex")
-            })
-            .collect();
-        map.insert(cleaner_name, compiled);
-    }
-    map
-});
+        for cleaner_name in registry.get_available_cleaners() {
+            let patterns = registry.get_patterns_by_name(&[cleaner_name]);
+            let compiled: Vec<Regex> = patterns
+                .into_iter()
+                .map(|p| {
+                    RegexBuilder::new(p)
+                        .case_insensitive(true)
+                        .build()
+                        .expect("Invalid regex")
+                })
+                .collect();
+            map.insert(cleaner_name, compiled);
+        }
+        map
+    });
 
-pub static PATTERNS_SET_CASE_SENSITIVE: Lazy<RegexSet> = Lazy::new(|| {
+pub static PATTERNS_SET_CASE_SENSITIVE: LazyLock<RegexSet> = LazyLock::new(|| {
     let pattern_strings = get_all_patterns();
     RegexSet::new(pattern_strings).expect("Failed to create regex set")
 });
 
-pub static PATTERNS_SET_CASE_INSENSITIVE: Lazy<RegexSet> = Lazy::new(|| {
+pub static PATTERNS_SET_CASE_INSENSITIVE: LazyLock<RegexSet> = LazyLock::new(|| {
     let pattern_strings = get_all_patterns();
     RegexSetBuilder::new(pattern_strings)
         .case_insensitive(true)
@@ -143,7 +145,7 @@ pub static PATTERNS_SET_CASE_INSENSITIVE: Lazy<RegexSet> = Lazy::new(|| {
 });
 
 /// Pre-computed replacement strings for semantic redaction
-pub static REPLACEMENT_STRINGS: Lazy<HashMap<&str, String>> = Lazy::new(|| {
+pub static REPLACEMENT_STRINGS: LazyLock<HashMap<&str, String>> = LazyLock::new(|| {
     let registry = get_registry();
     let mut map = HashMap::new();
 
