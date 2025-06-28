@@ -1544,14 +1544,12 @@ name = "piicleaner"
 version = "0.4.0"
 dependencies = [
  "criterion",
- "once_cell",
  "polars",
  "pyo3",
  "pyo3-build-config",
  "pyo3-polars",
  "rayon",
  "regex",
- "serde",
 ]
 
 [[package]]

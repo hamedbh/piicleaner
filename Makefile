@@ -20,6 +20,7 @@ test:  ## Run tests (no performance)
 	cargo test
 	uv run pytest -v -m "not performance"
 
+# Performance tests take c. 4-5 mins to run
 test_performance: ## Run performance and benchmarking tests
 	cargo test --release -- --ignored
 	uv run pytest -v -m "performance"
