@@ -1,3 +1,43 @@
+# Try to speed up the build with some mocking
+import os
+import sys
+from unittest.mock import MagicMock
+
+# Mock Rust extensions when building on Read the Docs
+if os.environ.get("READTHEDOCS"):
+
+    class MockCleaner(MagicMock):
+        def __init__(self, cleaners="all", replace_string=None):
+            super().__init__()
+
+        def clean_pii(self, text, method, ignore_case=True):
+            return "[mocked]"
+
+        def detect_pii(self, text, ignore_case=True):
+            return []
+
+        @classmethod
+        def get_available_cleaners(cls):
+            return [
+                "address",
+                "case-id",
+                "cash-amount",
+                "email",
+                "ip_address",
+                "nino",
+                "postcode",
+                "tag",
+                "telephone",
+            ]
+
+    mock_piicleaner = MagicMock()
+    mock_piicleaner.Cleaner = MockCleaner
+    sys.modules["piicleaner"] = mock_piicleaner
+    sys.modules["piicleaner._cleaner"] = MagicMock()
+    sys.modules["piicleaner._internal"] = MagicMock()
+    sys.modules["piicleaner._pandas"] = MagicMock()
+    sys.modules["piicleaner._polars"] = MagicMock()
+
 # Configuration file for the Sphinx documentation builder.
 #
 # For the full list of built-in configuration values, see the documentation:
