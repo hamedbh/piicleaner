@@ -17,3 +17,6 @@ venv/
 
 # Documentation build artifacts
 docs/_build/
+
+CLAUDE.md
+*_benchmarks.txt
