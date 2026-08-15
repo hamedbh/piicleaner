@@ -1,7 +1,11 @@
 """Tests for edge cases, boundary conditions, and error handling."""
 
 import pytest
-from piicleaner import Cleaner
+from piicleaner import (
+    Cleaner,
+    clean_pii_with_cleaners,
+    detect_pii_with_cleaners,
+)
 
 
 class TestStringBoundaryConditions:
@@ -597,3 +601,38 @@ class TestPerformanceEdgeCases:
             f"Batch performance too slow: {batch_performance:.0f} texts/sec "
             f"(expected ≥1000)"
         )
+
+
+class TestUnknownCleanerNames:
+    """Test handling of unrecognised cleaner names passed directly to the
+    module-level functions (i.e. bypassing `Cleaner`, the way the Pandas
+    and Polars plugin accessors do)."""
+
+    def test_detect_with_cleaners_unknown_name_raises(self):
+        with pytest.raises(ValueError, match="Unknown cleaner"):
+            detect_pii_with_cleaners(
+                "email test@example.com", ["not_a_real_cleaner"], True
+            )
+
+    def test_clean_with_cleaners_replace_unknown_name_raises(self):
+        with pytest.raises(ValueError, match="Unknown cleaner"):
+            clean_pii_with_cleaners(
+                "email test@example.com",
+                ["not_a_real_cleaner"],
+                "replace",
+                True,
+                None,
+            )
+
+    def test_clean_with_cleaners_redact_unknown_name_raises(self):
+        """This is the case that used to crash with an uncatchable
+        pyo3_runtime.PanicException instead of raising a normal, catchable
+        exception."""
+        with pytest.raises(ValueError, match="Unknown cleaner"):
+            clean_pii_with_cleaners(
+                "email test@example.com",
+                ["not_a_real_cleaner"],
+                "redact",
+                True,
+                None,
+            )

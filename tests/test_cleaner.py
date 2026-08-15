@@ -30,6 +30,18 @@ class TestCleanerInitialisation:
         ):
             Cleaner(123)
 
+    def test_init_unknown_cleaner_string(self):
+        """Test initialisation with an unrecognised cleaner name raises
+        ValueError."""
+        with pytest.raises(ValueError, match="Unknown cleaner"):
+            Cleaner("not_a_real_cleaner")
+
+    def test_init_unknown_cleaner_in_list(self):
+        """Test initialisation with a list containing an unrecognised
+        cleaner name raises ValueError."""
+        with pytest.raises(ValueError, match="Unknown cleaner"):
+            Cleaner(["email", "not_a_real_cleaner"])
+
     def test_get_available_cleaners(self):
         """Test static method returns available cleaner types."""
         cleaners = Cleaner.get_available_cleaners()
@@ -322,13 +334,14 @@ class TestSpecificCleaners:
         assert "AB123456C" not in pii_texts
 
     def test_nonexistent_cleaner(self):
-        """Test behaviour with non-existent cleaner type."""
-        cleaner = Cleaner(["nonexistent"])
-        text = "Email john@test.com"
-        matches = cleaner.detect_pii(text)
+        """Test behaviour with non-existent cleaner type.
 
-        # Should not detect anything with invalid cleaner
-        assert matches == []
+        Previously this silently matched nothing; it now raises at
+        construction time instead (see TestCleanerInitialisation for the
+        dedicated tests of that behaviour).
+        """
+        with pytest.raises(ValueError, match="Unknown cleaner"):
+            Cleaner(["nonexistent"])
 
 
 class TestCaseInsensitiveDetection:

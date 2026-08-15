@@ -40,6 +40,11 @@ class Cleaner(PolarsCleanerMixin, PandasCleanerMixin):
             cleaners (str | list[str]): PII types to detect/clean.
             replace_string (str | None): Custom replacement text for
                 "replace" mode.
+
+        Raises:
+            TypeError: If `cleaners` is not a string or list of strings.
+            ValueError: If `cleaners` contains a name not returned by
+                `get_available_cleaners()`.
         """
         if isinstance(cleaners, str):
             if cleaners == "all":
@@ -50,6 +55,15 @@ class Cleaner(PolarsCleanerMixin, PandasCleanerMixin):
             self.cleaners = cleaners
         else:
             raise TypeError("`cleaners` must be a string or list of strings")
+
+        if self.cleaners != ["all"]:
+            available = set(get_available_cleaners())
+            unknown = set(self.cleaners) - available
+            if unknown:
+                raise ValueError(
+                    f"Unknown cleaner(s): {sorted(unknown)}. "
+                    f"Available cleaners: {sorted(available)}"
+                )
 
         self.replace_string = replace_string
 

@@ -7,7 +7,7 @@ dev:  ## Install in development mode
 	uv run maturin develop
 
 check:  ## Check Rust code
-	cargo check
+	uv run cargo check
 
 build:  ## Build release version
 	uv run maturin build --release
@@ -17,14 +17,14 @@ docs: ## Render the docs
 	uv run --directory docs sphinx-build -b html . _build/html
 
 test:  ## Run tests (no performance)
-	cargo test
+	uv run cargo test
 	uv run pytest -v -m "not performance"
 
 # Performance tests take c. 4-5 mins to run
 test_performance: ## Run performance and benchmarking tests
-	cargo test --release -- --ignored
+	uv run cargo test --release -- --ignored
 	uv run pytest -v -m "performance"
-	cargo bench
+	uv run cargo bench
 
 test_all: test test_performance ## Run all tests (including performance)
 
@@ -34,9 +34,9 @@ clean:  ## Clean build artifacts
 	find . -name "__pycache__" -delete
 
 lint: ## Lint code
-	cargo clippy
+	uv run cargo clippy
 	uv run ruff check
 
 format:  ## Format code
-	cargo fmt
+	uv run cargo fmt
 	uv run ruff format
