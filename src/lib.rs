@@ -22,6 +22,28 @@ impl Cleaning {
     }
 }
 
+/// Reject any cleaner name not present in the pattern registry, so callers
+/// get a clear error instead of a silent no-op or a downstream panic.
+fn validate_cleaners(cleaners: &[&str]) -> PyResult<()> {
+    if cleaners == ["all"] {
+        return Ok(());
+    }
+    let available = patterns::get_registry().get_available_cleaners();
+    let unknown: Vec<&str> = cleaners
+        .iter()
+        .filter(|c| !available.contains(c))
+        .copied()
+        .collect();
+    if unknown.is_empty() {
+        Ok(())
+    } else {
+        Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+            "Unknown cleaner(s): {:?}. Available cleaners: {:?}",
+            unknown, available
+        )))
+    }
+}
+
 // ============================================================================
 // Detection functions
 // ============================================================================
@@ -42,6 +64,7 @@ pub fn detect_pii_with_cleaners(
     ignore_case: bool,
 ) -> DetectionResult {
     let cleaner_refs: Vec<&str> = cleaners.iter().map(|s| s.as_str()).collect();
+    validate_cleaners(&cleaner_refs)?;
     Ok(core::detect_pii_with_cleaners_core(
         text,
         &cleaner_refs,
@@ -69,6 +92,7 @@ pub fn detect_pii_with_cleaners_batch(
     ignore_case: bool,
 ) -> BatchDetectionResult {
     let cleaner_refs: Vec<&str> = cleaners.iter().map(|s| s.as_str()).collect();
+    validate_cleaners(&cleaner_refs)?;
     Ok(core::detect_pii_with_cleaners_batch_core(
         &texts,
         &cleaner_refs,
@@ -111,6 +135,7 @@ pub fn clean_pii_with_cleaners(
 ) -> PyResult<String> {
     let cleaning_enum = Cleaning::from_str(cleaning)?;
     let cleaner_refs: Vec<&str> = cleaners.iter().map(|s| s.as_str()).collect();
+    validate_cleaners(&cleaner_refs)?;
     let replace_str = replace_string.as_deref();
     Ok(core::clean_pii_with_cleaners_core(
         text,
@@ -153,6 +178,7 @@ pub fn clean_pii_with_cleaners_batch(
 ) -> PyResult<Vec<String>> {
     let cleaning_enum = Cleaning::from_str(cleaning)?;
     let cleaner_refs: Vec<&str> = cleaners.iter().map(|s| s.as_str()).collect();
+    validate_cleaners(&cleaner_refs)?;
     let replace_str = replace_string.as_deref();
     Ok(core::clean_pii_with_cleaners_batch_core(
         &texts,

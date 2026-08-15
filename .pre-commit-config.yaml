@@ -12,4 +12,6 @@ repos:
     rev: v1.0
     hooks:
     -   id: fmt
+        entry: uv run cargo fmt
     -   id: cargo-check
+        entry: uv run cargo check

@@ -121,8 +121,8 @@ pub fn clean_pii_with_cleaners_core(
             // Redact: replace each PII match with semantic labels, keep rest of text
             let mut result = text.to_string();
             for &cleaner_name in cleaners_to_process {
-                let replacement = &patterns::REPLACEMENT_STRINGS[cleaner_name];
                 if let Some(regexes) = compiled_patterns.get(cleaner_name) {
+                    let replacement = &patterns::REPLACEMENT_STRINGS[cleaner_name];
                     for regex in regexes {
                         result = regex.replace_all(&result, replacement).into_owned();
                     }
@@ -519,5 +519,28 @@ mod tests {
             let regex_result = regex::Regex::new(pattern);
             assert!(regex_result.is_ok(), "Invalid regex pattern: {}", pattern);
         }
+    }
+
+    #[test]
+    fn test_redact_unknown_cleaner_does_not_panic() {
+        let text = "My NINO is AB123456C";
+        let result = clean_pii_with_cleaners_core(
+            text,
+            &["not_a_real_cleaner"],
+            Cleaning::Redact,
+            false,
+            None,
+        );
+
+        // Unrecognised cleaner name matches nothing, so text is unchanged,
+        // rather than panicking on a missing REPLACEMENT_STRINGS entry.
+        assert_eq!(result, text);
+    }
+
+    #[test]
+    fn test_detect_unknown_cleaner_returns_empty() {
+        let text = "My NINO is AB123456C";
+        let result = detect_pii_with_cleaners_core(text, &["not_a_real_cleaner"], false);
+        assert!(result.is_empty());
     }
 }
