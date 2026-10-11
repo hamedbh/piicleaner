@@ -48,7 +48,7 @@ def rst_blocks(text):
 
 
 def code_blocks(path):
-    text = (ROOT / path).read_text()
+    text = (ROOT / path).read_text(encoding="utf-8")
     blocks = markdown_blocks if path.endswith(".md") else rst_blocks
     return list(blocks(text))
 
