@@ -110,7 +110,7 @@ df = pl.DataFrame({
 cleaner = Cleaner()
 
 # Clean PII in DataFrame
-cleaned_df = cleaner.clean_dataframe(df, "text", "redact", "cleaned_text")
+cleaned_df = cleaner.clean_dataframe(df, "text", "redact", new_column_name="cleaned_text")
 print(cleaned_df)
 
 # Detect PII in DataFrame  
@@ -142,7 +142,7 @@ df = pd.DataFrame({
 cleaner = Cleaner()
 
 # Clean PII in DataFrame
-cleaned_df = cleaner.clean_pandas_dataframe(df, "text", "redact", "cleaned_text")
+cleaned_df = cleaner.clean_pandas_dataframe(df, "text", "redact", new_column_name="cleaned_text")
 print(cleaned_df)
 
 # Detect PII in DataFrame  
@@ -209,7 +209,7 @@ This ensures maximum PII detection while allowing precise control when needed.
 ### Cleaner Class
 
 ```python
-class Cleaner(cleaners="all")
+Cleaner(cleaners="all", replace_string=None)
 ```
 
 **Parameters:**
@@ -221,10 +221,12 @@ class Cleaner(cleaners="all")
 - `detect_pii_list(texts, ignore_case=True)`: Detect PII in list of strings
 - `clean_pii(text, cleaning, ignore_case=True)`: Clean PII from text
 - `clean_pii_list(texts, cleaning, ignore_case=True)`: Clean list of strings
-- `clean_dataframe(df, column, cleaning, new_column_name=None)`: Clean Polars DataFrame
-- `detect_dataframe(df, column)`: Detect PII in Polars DataFrame
-- `clean_pandas_dataframe(df, column, cleaning, new_column_name=None)`: Clean Pandas DataFrame
-- `detect_pandas_dataframe(df, column)`: Detect PII in Pandas DataFrame
+- `clean_dataframe(df, column, cleaning, *, ignore_case=True, new_column_name=None)`: Clean Polars DataFrame
+- `detect_dataframe(df, column, *, ignore_case=True, new_column_name=None)`: Detect PII in Polars DataFrame
+- `clean_pandas_dataframe(df, column, cleaning, *, ignore_case=True, new_column_name=None)`: Clean Pandas DataFrame
+- `detect_pandas_dataframe(df, column, *, ignore_case=True, new_column_name=None)`: Detect PII in Pandas DataFrame
+
+In the DataFrame methods, `ignore_case` and `new_column_name` are keyword-only, e.g. `clean_dataframe(df, "text", "redact", new_column_name="cleaned_text")`.
 - `get_available_cleaners()`: Get list of available PII types
 
 **DataFrame Integration Features:**

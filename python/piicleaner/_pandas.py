@@ -23,8 +23,9 @@ class PandasCleanerMixin:
         df: pd.DataFrame,
         column_name: str,
         cleaning: str,
+        *,
         ignore_case: bool = True,
-        new_column_name: str = None,
+        new_column_name: str | None = None,
     ):
         """Clean PII in a Pandas DataFrame column.
 
@@ -77,8 +78,9 @@ class PandasCleanerMixin:
         self,
         df: pd.DataFrame,
         column_name: str,
+        *,
         ignore_case: bool = True,
-        new_column_name: str = None,
+        new_column_name: str | None = None,
     ):
         """Detect PII in a Pandas DataFrame column.
 

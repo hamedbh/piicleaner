@@ -160,7 +160,7 @@ Polars Examples
    cleaner = Cleaner()
 
    # Method 1: Using cleaner methods
-   cleaned_df = cleaner.clean_dataframe(df, "customer_info", "redact", "cleaned_info")
+   cleaned_df = cleaner.clean_dataframe(df, "customer_info", "redact", new_column_name="cleaned_info")
    print("Cleaned DataFrame:")
    print(cleaned_df)
 
@@ -201,7 +201,7 @@ Pandas Examples
    cleaner = Cleaner()
 
    # Method 1: Using cleaner methods
-   cleaned_df = cleaner.clean_pandas_dataframe(df, "customer_info", "redact", "cleaned_info")
+   cleaned_df = cleaner.clean_pandas_dataframe(df, "customer_info", "redact", new_column_name="cleaned_info")
    print("Cleaned DataFrame:")
    print(cleaned_df)
 
@@ -284,7 +284,7 @@ Processing Large Datasets
 
    # Time the cleaning operation
    start_time = time.time()
-   cleaned_df = cleaner.clean_dataframe(df, "text", "redact", "cleaned_text")
+   cleaned_df = cleaner.clean_dataframe(df, "text", "redact", new_column_name="cleaned_text")
    end_time = time.time()
 
    print(f"Processed {n_rows:,} rows in {end_time - start_time:.2f} seconds")
@@ -315,7 +315,7 @@ Multiple Column Processing
    text_columns = ["email", "notes"]
    
    for col in text_columns:
-       df = cleaner.clean_dataframe(df, col, "redact", f"{col}_cleaned")
+       df = cleaner.clean_dataframe(df, col, "redact", new_column_name=f"{col}_cleaned")
 
    print("Multi-column cleaning:")
    print(df)
@@ -346,11 +346,11 @@ Integration with Data Pipelines
            # Standard data cleaning
            .filter(pl.col("customer_info").is_not_null())
            .with_columns([
-               pl.col("customer_info").str.strip().alias("customer_info_clean")
+               pl.col("customer_info").str.strip_chars().alias("customer_info_clean")
            ])
            # PII detection and cleaning
            .pipe(lambda df: cleaner.clean_dataframe(
-               df, "customer_info_clean", "redact", "customer_info_redacted"
+               df, "customer_info_clean", "redact", new_column_name="customer_info_redacted"
            ))
            .pipe(lambda df: cleaner.detect_dataframe(
                df, "customer_info_clean", new_column_name="pii_found"

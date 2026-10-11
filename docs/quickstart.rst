@@ -138,7 +138,7 @@ Polars DataFrames
    cleaner = Cleaner()
 
    # Clean PII in DataFrame
-   cleaned_df = cleaner.clean_dataframe(df, "text", "redact", "cleaned_text")
+   cleaned_df = cleaner.clean_dataframe(df, "text", "redact", new_column_name="cleaned_text")
    print(cleaned_df)
 
    # Detect PII in DataFrame  
@@ -171,7 +171,7 @@ Pandas DataFrames
    cleaner = Cleaner()
 
    # Clean PII in DataFrame
-   cleaned_df = cleaner.clean_pandas_dataframe(df, "text", "redact", "cleaned_text")
+   cleaned_df = cleaner.clean_pandas_dataframe(df, "text", "redact", new_column_name="cleaned_text")
    print(cleaned_df)
 
    # Detect PII in DataFrame  
