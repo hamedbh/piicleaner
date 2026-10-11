@@ -77,13 +77,17 @@ print(cleaned)  # "Contact John at [email-redacted] or call [telephone-redacted]
 matches = cleaner.detect_pii(text)
 print(matches)  
 # [{'start': 16, 'end': 32, 'text': 'JOHN@EXAMPLE.COM', 'type': 'email'}, 
-#  {'start': 41, 'end': 58, 'text': '+44 20 7946 0958', 'type': 'telephone'}]
+#  {'start': 41, 'end': 57, 'text': '+44 20 7946 0958', 'type': 'telephone'}]
+# 'start' and 'end' are character offsets, so they slice the original string:
+# text[16:32] == 'JOHN@EXAMPLE.COM', even when the text contains non-ASCII
+# characters such as '£' or 'é'
 
 # Case-sensitive detection
-matches_sensitive = cleaner.detect_pii("nino: ab123456c", ignore_case=False)
+nino_cleaner = Cleaner(cleaners=["nino"])
+matches_sensitive = nino_cleaner.detect_pii("nino: ab123456c", ignore_case=False)
 print(matches_sensitive)  # [] - no match because NINO pattern expects uppercase
 
-matches_insensitive = cleaner.detect_pii("nino: ab123456c", ignore_case=True)
+matches_insensitive = nino_cleaner.detect_pii("nino: ab123456c", ignore_case=True)
 print(matches_insensitive)  # [{'start': 6, 'end': 15, 'text': 'ab123456c', 'type': 'nino'}]
 ```
 

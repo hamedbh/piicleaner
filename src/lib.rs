@@ -1,4 +1,5 @@
 use pyo3::prelude::*;
+use rayon::prelude::*;
 
 pub mod core;
 pub mod patterns;
@@ -44,15 +45,77 @@ fn validate_cleaners(cleaners: &[&str]) -> PyResult<()> {
     }
 }
 
+/// Convert the byte offsets in detection results to character offsets.
+///
+/// The Rust core reports UTF-8 byte offsets, but Python indexes `str` by code
+/// point. A Rust `char` is one code point, so counting chars gives offsets
+/// that slice the original Python string correctly.
+fn to_char_offsets(text: &str, matches: Vec<DetectionMatch>) -> Vec<DetectionMatch> {
+    // Bytes and characters coincide for ASCII text
+    if matches.is_empty() || text.is_ascii() {
+        return matches;
+    }
+
+    // Every byte offset that needs converting, in order
+    let mut byte_offsets: Vec<usize> = matches.iter().flat_map(|m| [m.0, m.1]).collect();
+    byte_offsets.sort_unstable();
+    byte_offsets.dedup();
+
+    // One pass over the text, recording the char count at each byte offset.
+    // Match boundaries always fall on char boundaries, and the end of the
+    // text is included so a match ending there is converted too.
+    let mut char_offsets = Vec::with_capacity(byte_offsets.len());
+    let boundaries = text
+        .char_indices()
+        .map(|(i, _)| i)
+        .chain(std::iter::once(text.len()));
+    let mut wanted = byte_offsets.iter().peekable();
+    for (char_idx, byte_idx) in boundaries.enumerate() {
+        while wanted.next_if(|&&b| b == byte_idx).is_some() {
+            char_offsets.push(char_idx);
+        }
+        if wanted.peek().is_none() {
+            break;
+        }
+    }
+
+    let to_char = |byte: usize| {
+        let i = byte_offsets
+            .binary_search(&byte)
+            .expect("match offset is a char boundary");
+        char_offsets[i]
+    };
+    matches
+        .into_iter()
+        .map(|(start, end, matched, pii_type)| (to_char(start), to_char(end), matched, pii_type))
+        .collect()
+}
+
+/// Batch version of `to_char_offsets`, converting each text in parallel.
+fn to_char_offsets_batch(
+    texts: &[String],
+    results: Vec<Vec<DetectionMatch>>,
+) -> Vec<Vec<DetectionMatch>> {
+    texts
+        .par_iter()
+        .zip(results)
+        .map(|(text, matches)| to_char_offsets(text, matches))
+        .collect()
+}
+
 // ============================================================================
 // Detection functions
 // ============================================================================
 
-/// Detect PII in a string and return match information
+/// Detect PII in a string and return match information. Offsets are
+/// character offsets, so they index the Python string directly.
 #[pyfunction]
 #[pyo3(signature = (text, ignore_case = true))]
 pub fn detect_pii(text: &str, ignore_case: bool) -> DetectionResult {
-    Ok(core::detect_pii_core(text, ignore_case))
+    Ok(to_char_offsets(
+        text,
+        core::detect_pii_core(text, ignore_case),
+    ))
 }
 
 /// Detect PII with specific cleaners
@@ -65,10 +128,9 @@ pub fn detect_pii_with_cleaners(
 ) -> DetectionResult {
     let cleaner_refs: Vec<&str> = cleaners.iter().map(|s| s.as_str()).collect();
     validate_cleaners(&cleaner_refs)?;
-    Ok(core::detect_pii_with_cleaners_core(
+    Ok(to_char_offsets(
         text,
-        &cleaner_refs,
-        ignore_case,
+        core::detect_pii_with_cleaners_core(text, &cleaner_refs, ignore_case),
     ))
 }
 
@@ -76,11 +138,8 @@ pub fn detect_pii_with_cleaners(
 #[pyfunction]
 #[pyo3(signature = (texts, ignore_case = true))]
 pub fn detect_pii_batch(texts: Vec<String>, ignore_case: bool) -> BatchDetectionResult {
-    Ok(core::detect_pii_with_cleaners_batch_core(
-        &texts,
-        &["all"],
-        ignore_case,
-    ))
+    let results = core::detect_pii_with_cleaners_batch_core(&texts, &["all"], ignore_case);
+    Ok(to_char_offsets_batch(&texts, results))
 }
 
 /// Vectorised detect PII with specific cleaners for multiple texts
@@ -93,11 +152,8 @@ pub fn detect_pii_with_cleaners_batch(
 ) -> BatchDetectionResult {
     let cleaner_refs: Vec<&str> = cleaners.iter().map(|s| s.as_str()).collect();
     validate_cleaners(&cleaner_refs)?;
-    Ok(core::detect_pii_with_cleaners_batch_core(
-        &texts,
-        &cleaner_refs,
-        ignore_case,
-    ))
+    let results = core::detect_pii_with_cleaners_batch_core(&texts, &cleaner_refs, ignore_case);
+    Ok(to_char_offsets_batch(&texts, results))
 }
 
 // ============================================================================
@@ -223,4 +279,70 @@ fn _internal(_py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(get_available_cleaners, m)?)?;
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn m(start: usize, end: usize, text: &str) -> DetectionMatch {
+        (start, end, text.to_string(), "email".to_string())
+    }
+
+    /// Slice by char offsets, the way Python slices a str
+    fn char_slice(text: &str, start: usize, end: usize) -> String {
+        text.chars().skip(start).take(end - start).collect()
+    }
+
+    #[test]
+    fn test_ascii_offsets_unchanged() {
+        let text = "Contact a@b.com now";
+        let matches = vec![m(8, 15, "a@b.com")];
+        assert_eq!(to_char_offsets(text, matches.clone()), matches);
+    }
+
+    #[test]
+    fn test_non_ascii_before_match() {
+        // "é" is 2 bytes, "£" is 2 bytes, "😀" is 4 bytes, "東" is 3 bytes
+        for prefix in ["Café ", "£100 ", "😀 ", "東京 ", "e\u{301} "] {
+            let text = format!("{prefix}a@b.com x");
+            let start = text.find("a@b.com").unwrap();
+            let result = to_char_offsets(&text, vec![m(start, start + 7, "a@b.com")]);
+            let (s, e, _, _) = result[0];
+            assert_eq!(char_slice(&text, s, e), "a@b.com", "prefix {prefix:?}");
+        }
+    }
+
+    #[test]
+    fn test_non_ascii_inside_match_and_at_end() {
+        let text = "x £1,500";
+        let start = text.find('£').unwrap();
+        let result = to_char_offsets(text, vec![m(start, text.len(), "£1,500")]);
+        assert_eq!((result[0].0, result[0].1), (2, 8));
+        assert_eq!(char_slice(text, 2, 8), "£1,500");
+    }
+
+    #[test]
+    fn test_multiple_and_overlapping_matches() {
+        let text = "é a@b.com é c@d.org";
+        let a = text.find("a@b.com").unwrap();
+        let c = text.find("c@d.org").unwrap();
+        let matches = vec![
+            m(a, a + 7, "a@b.com"),
+            m(a, a + 1, "a"),
+            m(c, c + 7, "c@d.org"),
+        ];
+        let result = to_char_offsets(text, matches);
+        let pairs: Vec<(usize, usize)> = result.iter().map(|r| (r.0, r.1)).collect();
+        assert_eq!(pairs, vec![(2, 9), (2, 3), (12, 19)]);
+    }
+
+    #[test]
+    fn test_batch_conversion() {
+        let texts = vec!["é a@b.com".to_string(), "a@b.com".to_string()];
+        let results = vec![vec![m(3, 10, "a@b.com")], vec![m(0, 7, "a@b.com")]];
+        let converted = to_char_offsets_batch(&texts, results);
+        assert_eq!((converted[0][0].0, converted[0][0].1), (2, 9));
+        assert_eq!((converted[1][0].0, converted[1][0].1), (0, 7));
+    }
 }

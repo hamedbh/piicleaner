@@ -79,7 +79,8 @@ class Cleaner(PolarsCleanerMixin, PandasCleanerMixin):
 
         Returns:
             list[dict[str, str | int]]: List of dictionaries with keys 'start',
-                'end', 'text', 'type'.
+                'end', 'text', 'type'. 'start' and 'end' are character
+                offsets, so ``string[start:end] == text``.
         """
         if self.cleaners == ["all"]:
             matches = _detect_pii(string, ignore_case)
@@ -106,7 +107,8 @@ class Cleaner(PolarsCleanerMixin, PandasCleanerMixin):
 
         Returns:
             list[list[dict[str, str | int]]]: List of lists of dictionaries with
-                keys 'start', 'end', 'text', 'type'.
+                keys 'start', 'end', 'text', 'type'. 'start' and 'end' are
+                character offsets into the corresponding string.
         """
         if self.cleaners == ["all"]:
             matches = _detect_pii_batch(texts, ignore_case)
