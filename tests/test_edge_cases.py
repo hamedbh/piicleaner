@@ -636,3 +636,64 @@ class TestUnknownCleanerNames:
                 True,
                 None,
             )
+
+
+class TestDeterminism:
+    """The same input and options must always give the same output, across
+    processes as well as within one."""
+
+    TEXTS = [
+        "Reference: AB123456",
+        "call 07700 900123 now",
+        "x Reference: AB123456, y",
+        "Email john@example.com, NINO AB123456C, £1,500, ref 12345678",
+    ]
+
+    # Each subprocess gets a fresh hash seed, which used to change the order
+    # cleaners were applied in
+    SCRIPT = """
+import json
+import piicleaner as p
+from piicleaner import Cleaner
+texts = json.loads({texts!r})
+c = Cleaner()
+print(json.dumps({{
+    "redact": [c.clean_pii(t, "redact") for t in texts],
+    "detect": [c.detect_pii(t) for t in texts],
+    "batch": c.clean_pii_list(texts, "redact"),
+    "cleaners": p.get_available_cleaners(),
+}}))
+"""
+
+    def test_output_identical_across_processes(self):
+        import json
+        import subprocess
+        import sys
+
+        script = self.SCRIPT.format(texts=json.dumps(self.TEXTS))
+        outputs = {
+            subprocess.run(
+                [sys.executable, "-c", script],
+                capture_output=True,
+                text=True,
+                check=True,
+            ).stdout
+            for _ in range(8)
+        }
+        assert len(outputs) == 1
+
+    def test_overlapping_matches_do_not_leak_partial_pii(self):
+        """Sequential redaction used to leave '07700' behind whenever
+        case-id ran before telephone."""
+        cleaner = Cleaner()
+        assert (
+            cleaner.clean_pii("call 07700 900123 now", "redact")
+            == "call [telephone-redacted] now"
+        )
+
+    def test_cleaner_list_order_does_not_change_output(self):
+        text = "call 07700 900123, ref AB123456"
+        a = Cleaner(["case-id", "telephone", "nino"])
+        b = Cleaner(["nino", "telephone", "case-id"])
+        assert a.clean_pii(text, "redact") == b.clean_pii(text, "redact")
+        assert a.detect_pii(text) == b.detect_pii(text)

@@ -1,7 +1,67 @@
 //! Core PII detection and cleaning logic without Python bindings
 
-use crate::patterns;
+use crate::patterns::{self, CompiledCleaner};
 use rayon::prelude::*;
+
+/// A single match: byte offsets into the original text, plus the cleaner that
+/// produced it.
+struct Match {
+    start: usize,
+    end: usize,
+    cleaner: &'static CompiledCleaner,
+}
+
+fn is_all(cleaners: &[&str]) -> bool {
+    cleaners.len() == 1 && cleaners[0] == "all"
+}
+
+/// Select the cleaners to run, always in registry priority order (whatever
+/// order the caller listed them in, and without duplicates), so that results
+/// are deterministic. Unknown names match nothing.
+fn select_cleaners(
+    compiled: &'static [CompiledCleaner],
+    cleaners: &[&str],
+) -> Vec<&'static CompiledCleaner> {
+    if is_all(cleaners) {
+        compiled.iter().collect()
+    } else {
+        compiled
+            .iter()
+            .filter(|c| cleaners.contains(&c.name))
+            .collect()
+    }
+}
+
+/// Collect every match from the selected cleaners against the original text,
+/// sorted by start, then end, then cleaner priority.
+fn collect_matches(text: &str, cleaners: &[&str], ignore_case: bool) -> Vec<Match> {
+    let (compiled, patterns_set) = patterns::get_patterns(ignore_case);
+
+    // Early exit when using "all" cleaners
+    if is_all(cleaners) && !patterns_set.is_match(text) {
+        return Vec::new();
+    }
+
+    let mut matches = Vec::new();
+    for cleaner in select_cleaners(compiled, cleaners) {
+        for regex in &cleaner.regexes {
+            for m in regex.find_iter(text) {
+                if m.start() < m.end() {
+                    matches.push(Match {
+                        start: m.start(),
+                        end: m.end(),
+                        cleaner,
+                    });
+                }
+            }
+        }
+    }
+
+    matches.sort_by_key(|m| (m.start, m.end, m.cleaner.priority));
+    // Several patterns in one cleaner can produce the same span
+    matches.dedup_by_key(|m| (m.start, m.end, m.cleaner.priority));
+    matches
+}
 
 /// Core function to detect PII with specific cleaners
 pub fn detect_pii_with_cleaners_core(
@@ -9,41 +69,17 @@ pub fn detect_pii_with_cleaners_core(
     cleaners: &[&str],
     ignore_case: bool,
 ) -> Vec<(usize, usize, String, String)> {
-    let (compiled_patterns, patterns_set) = patterns::get_patterns(ignore_case);
-
-    // Early exit when using "all" cleaners
-    if cleaners.len() == 1 && cleaners[0] == "all" && !patterns_set.is_match(text) {
-        return Vec::new();
-    }
-
-    let mut all_matches = Vec::new();
-
-    // Determine which patterns to use
-    let cleaners_to_process = if cleaners.len() == 1 && cleaners[0] == "all" {
-        compiled_patterns.keys().collect::<Vec<_>>()
-    } else {
-        cleaners.iter().collect::<Vec<_>>()
-    };
-
-    // Process each cleaner
-    for &cleaner_name in cleaners_to_process {
-        if let Some(regexes) = compiled_patterns.get(cleaner_name) {
-            for regex in regexes {
-                for m in regex.find_iter(text) {
-                    all_matches.push((
-                        m.start(),
-                        m.end(),
-                        m.as_str().to_string(),
-                        cleaner_name.to_string(),
-                    ));
-                }
-            }
-        }
-    }
-
-    all_matches.sort_by_key(|&(start, _, _, _)| start);
-    all_matches.dedup();
-    all_matches
+    collect_matches(text, cleaners, ignore_case)
+        .into_iter()
+        .map(|m| {
+            (
+                m.start,
+                m.end,
+                text[m.start..m.end].to_string(),
+                m.cleaner.name.to_string(),
+            )
+        })
+        .collect()
 }
 
 /// Vectorised function to detect PII with specific cleaners for multiple texts
@@ -70,6 +106,33 @@ pub enum Cleaning {
     Redact,
 }
 
+/// Redact in a single pass over the original text. Overlapping matches are
+/// merged so the union of all matched spans is redacted (never less), and
+/// each merged region is labelled with its highest-priority cleaner.
+fn redact(text: &str, matches: &[Match]) -> String {
+    let mut result = String::with_capacity(text.len());
+    let mut last = 0;
+    let mut iter = matches.iter().peekable();
+
+    while let Some(first) = iter.next() {
+        let start = first.start;
+        let mut end = first.end;
+        let mut label = first.cleaner;
+        while let Some(next) = iter.next_if(|m| m.start < end) {
+            end = end.max(next.end);
+            if next.cleaner.priority < label.priority {
+                label = next.cleaner;
+            }
+        }
+        result.push_str(&text[last..start]);
+        result.push_str(&label.replacement);
+        last = end;
+    }
+
+    result.push_str(&text[last..]);
+    result
+}
+
 /// Core function to clean PII with specific cleaners
 pub fn clean_pii_with_cleaners_core(
     text: &str,
@@ -78,57 +141,32 @@ pub fn clean_pii_with_cleaners_core(
     ignore_case: bool,
     replace_string: Option<&str>,
 ) -> String {
-    let (compiled_patterns, patterns_set) = patterns::get_patterns(ignore_case);
+    let (compiled, patterns_set) = patterns::get_patterns(ignore_case);
     let replace_str = replace_string.unwrap_or("[PII detected, text redacted]");
 
     match cleaning {
         Cleaning::Replace => {
-            // If cleaners is "all" then we can use the regex set, otherwise
-            // need to use the compiled patterns
-            if cleaners.len() == 1 && cleaners[0] == "all" {
-                // Replace: if ANY PII found, replace entire text with message
-                if patterns_set.is_match(text) {
-                    return replace_str.to_string();
-                } else {
-                    return text.to_string();
-                }
+            // Replace: if ANY PII found, replace entire text with message
+            let found = if is_all(cleaners) {
+                patterns_set.is_match(text)
             } else {
-                for &cleaner_name in cleaners {
-                    if let Some(regexes) = compiled_patterns.get(cleaner_name) {
-                        for regex in regexes {
-                            if regex.is_match(text) {
-                                return replace_str.to_string();
-                            }
-                        }
-                    }
-                }
+                select_cleaners(compiled, cleaners)
+                    .iter()
+                    .any(|c| c.regexes.iter().any(|r| r.is_match(text)))
+            };
+            if found {
+                replace_str.to_string()
+            } else {
+                text.to_string()
             }
-            text.to_string()
         }
         Cleaning::Redact => {
-            // Early exit optimization: if using "all" cleaners and no PII found, return original text
-            if cleaners.len() == 1 && cleaners[0] == "all" && !patterns_set.is_match(text) {
-                return text.to_string();
-            }
-
-            // Determine which patterns to use
-            let cleaners_to_process = if cleaners.len() == 1 && cleaners[0] == "all" {
-                compiled_patterns.keys().collect::<Vec<_>>()
+            let matches = collect_matches(text, cleaners, ignore_case);
+            if matches.is_empty() {
+                text.to_string()
             } else {
-                cleaners.iter().collect::<Vec<_>>()
-            };
-
-            // Redact: replace each PII match with semantic labels, keep rest of text
-            let mut result = text.to_string();
-            for &cleaner_name in cleaners_to_process {
-                if let Some(regexes) = compiled_patterns.get(cleaner_name) {
-                    let replacement = &patterns::REPLACEMENT_STRINGS[cleaner_name];
-                    for regex in regexes {
-                        result = regex.replace_all(&result, replacement).into_owned();
-                    }
-                }
+                redact(text, &matches)
             }
-            result
         }
     }
 }
@@ -265,10 +303,9 @@ mod tests {
         let text = "Reference: AB123456"; // Could match both case-id and nino patterns
         let result = clean_pii_core(text, Cleaning::Redact, false, None);
 
-        // Document the current behaviour - whichever cleaner processes first wins
-        // This test ensures consistent behaviour
-        assert!(!result.contains("AB123456"));
-        assert!(result.contains("-redacted]"));
+        // nino ("AB123456") and case-id ("123456") overlap; the merged region
+        // takes the higher-priority label
+        assert_eq!(result, "Reference: [nino-redacted]");
     }
 
     #[test]
@@ -533,7 +570,7 @@ mod tests {
         );
 
         // Unrecognised cleaner name matches nothing, so text is unchanged,
-        // rather than panicking on a missing REPLACEMENT_STRINGS entry.
+        // rather than panicking on a missing replacement label.
         assert_eq!(result, text);
     }
 
@@ -542,5 +579,104 @@ mod tests {
         let text = "My NINO is AB123456C";
         let result = detect_pii_with_cleaners_core(text, &["not_a_real_cleaner"], false);
         assert!(result.is_empty());
+    }
+
+    #[test]
+    fn test_overlapping_matches_do_not_leak_partial_pii() {
+        // telephone matches "07700 900123" and case-id matches "900123"; with
+        // sequential redaction, running case-id first left "07700" behind
+        let text = "call 07700 900123 now";
+        for ignore_case in [false, true] {
+            let result = clean_pii_core(text, Cleaning::Redact, ignore_case, None);
+            assert_eq!(result, "call [telephone-redacted] now");
+        }
+    }
+
+    #[test]
+    fn test_redaction_covers_union_of_overlapping_spans() {
+        // Partially overlapping spans from different cleaners are merged, so
+        // no matched character survives
+        let text = "x Reference: AB123456, y";
+        let detected = detect_pii_core(text, true);
+        let union_start = detected.iter().map(|m| m.0).min().unwrap();
+        let union_end = detected.iter().map(|m| m.1).max().unwrap();
+        assert_eq!(&text[union_start..union_end], "Reference: AB123456");
+
+        let result = clean_pii_core(text, Cleaning::Redact, true, None);
+        assert_eq!(result, "x [nino-redacted], y");
+    }
+
+    #[test]
+    fn test_adjacent_non_overlapping_matches_redacted_separately() {
+        let text = "a@example.com SW1A 1AA";
+        let result = clean_pii_core(text, Cleaning::Redact, false, None);
+        assert_eq!(result, "[email-redacted] [postcode-redacted]");
+    }
+
+    #[test]
+    fn test_detection_order_is_start_end_priority() {
+        let text = "Reference: AB123456";
+        let result = detect_pii_core(text, true);
+        let keys: Vec<(usize, usize)> = result.iter().map(|m| (m.0, m.1)).collect();
+        let mut sorted = keys.clone();
+        sorted.sort();
+        assert_eq!(keys, sorted);
+
+        // Same span from nino and case-id: nino (higher priority) comes first
+        let same_span: Vec<&str> = result
+            .iter()
+            .filter(|m| m.2 == "AB123456")
+            .map(|m| m.3.as_str())
+            .collect();
+        assert_eq!(same_span, vec!["nino", "case-id"]);
+    }
+
+    #[test]
+    fn test_detection_has_no_duplicate_matches() {
+        // Both email patterns match the same span; it should be reported once
+        let result = detect_pii_with_cleaners_core("Contact john@example.com", &["email"], false);
+        assert_eq!(result.len(), 1);
+    }
+
+    #[test]
+    fn test_cleaner_list_order_does_not_change_output() {
+        let text = "call 07700 900123, ref AB123456";
+        let a = clean_pii_with_cleaners_core(
+            text,
+            &["case-id", "telephone", "nino"],
+            Cleaning::Redact,
+            true,
+            None,
+        );
+        let b = clean_pii_with_cleaners_core(
+            text,
+            &["nino", "telephone", "case-id"],
+            Cleaning::Redact,
+            true,
+            None,
+        );
+        assert_eq!(a, b);
+        assert_eq!(
+            detect_pii_with_cleaners_core(text, &["case-id", "telephone", "nino"], true),
+            detect_pii_with_cleaners_core(text, &["nino", "telephone", "case-id"], true),
+        );
+    }
+
+    #[test]
+    fn test_available_cleaners_in_priority_order() {
+        assert_eq!(
+            patterns::get_registry().get_available_cleaners(),
+            vec![
+                "email",
+                "nino",
+                "postcode",
+                "telephone",
+                "ip_address",
+                "address",
+                "tag",
+                "cash-amount",
+                "case-id",
+            ]
+        );
     }
 }

@@ -32,7 +32,7 @@ def clean_pii_with_cleaners(
     ...
 
 def get_available_cleaners() -> list[str]:
-    """Get list of available cleaner names"""
+    """Get list of available cleaner names, in priority order"""
     ...
 
 def detect_pii_batch(
