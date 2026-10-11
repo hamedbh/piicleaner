@@ -127,6 +127,60 @@ fn test_nino_pattern_matching() {
 }
 
 #[test]
+fn test_nino_suffix_matches_space_and_letter_or_neither() {
+    let nino_patterns = get_patterns_by_name(&["nino"]);
+    let re = regex::RegexBuilder::new(nino_patterns[0])
+        .case_insensitive(true)
+        .build()
+        .unwrap();
+
+    let test_cases = vec![
+        ("AB123456A", "AB123456A"),
+        ("AB123456 A", "AB123456 A"),
+        ("AB123456  A", "AB123456  A"),
+        ("AB123456 A.", "AB123456 A"),
+        // No suffix: trailing space is not part of the match
+        ("AB123456 y", "AB123456"),
+        // A word starting with a-d is not a suffix letter
+        ("AB123456 and more", "AB123456"),
+        // An attached suffix letter is always matched
+        ("AB123456Cxyz", "AB123456C"),
+        ("AB123456.", "AB123456"),
+        ("AB123456 And more", "AB123456"),
+        // Lower case
+        ("ab123456a", "ab123456a"),
+        ("ab123456 a", "ab123456 a"),
+        ("ab123456  a", "ab123456  a"),
+        ("ab123456 a.", "ab123456 a"),
+        ("ab123456 y", "ab123456"),
+        ("ab123456 and more", "ab123456"),
+        ("ab123456cxyz", "ab123456c"),
+        ("ab123456.", "ab123456"),
+        // Mixed case
+        ("Ab123456c", "Ab123456c"),
+        ("aB123456 C", "aB123456 C"),
+        ("Ab123456 D.", "Ab123456 D"),
+    ];
+
+    for (text, expected) in test_cases {
+        let found = re.find(text).map(|m| m.as_str());
+        assert_eq!(found, Some(expected), "NINO match in '{}' incorrect", text);
+    }
+}
+
+#[test]
+fn test_nino_case_sensitive_requires_upper_case() {
+    let nino_patterns = get_patterns_by_name(&["nino"]);
+    let re = regex::Regex::new(nino_patterns[0]).unwrap();
+
+    // Lower-case prefix: no match at all
+    assert_eq!(re.find("ab123456a"), None);
+    // Upper-case prefix with a lower-case suffix: the suffix is not matched
+    assert_eq!(re.find("AB123456 a").map(|m| m.as_str()), Some("AB123456"));
+    assert_eq!(re.find("AB123456a").map(|m| m.as_str()), Some("AB123456"));
+}
+
+#[test]
 fn test_postcode_pattern_matching() {
     let postcode_patterns = get_patterns_by_name(&["postcode"]);
     let re = regex::Regex::new(postcode_patterns[0]).unwrap();

@@ -193,7 +193,7 @@ pub fn clean_pii_with_cleaners_batch(
 // Utility functions
 // ============================================================================
 
-/// Get list of available cleaner names
+/// Get list of available cleaner names, in priority order
 #[pyfunction]
 pub fn get_available_cleaners() -> PyResult<Vec<String>> {
     let registry = patterns::get_registry();

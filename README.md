@@ -188,7 +188,7 @@ print(Cleaner.get_available_cleaners())
 
 ## Cleaning Methods
 
-- **`"redact"`**: Redact the PII, replacing it with semantic labels like `[email-redacted]`, `[telephone-redacted]`
+- **`"redact"`**: Redact the PII, replacing it with semantic labels like `[email-redacted]`, `[telephone-redacted]`. Where matches from different cleaners overlap, the whole overlapping region is redacted and labelled with the highest-priority cleaner, in the order returned by `piicleaner.get_available_cleaners()`. The same input always produces the same output.
 - **`"replace"`**: Replace the entire string if _any_ PII is detected (uses custom replacement string if provided)
 
 ## Case Sensitivity

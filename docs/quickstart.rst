@@ -235,9 +235,12 @@ Cleaning Methods
 PIICleaner supports two cleaning methods:
 
 **"redact"**
-  Redact the PII, replacing it with semantic labels like ``[email-redacted]``, ``[telephone-redacted]``
+  Redact the PII, replacing it with semantic labels like ``[email-redacted]``, ``[telephone-redacted]``.
+  Where matches from different cleaners overlap, the whole overlapping region is redacted and labelled
+  with the highest-priority cleaner, in the order returned by ``piicleaner.get_available_cleaners()``.
+  The same input always produces the same output.
 
-**"replace"** 
+**"replace"**
   Replace the entire string if *any* PII is detected (uses custom replacement string if provided)
 
 .. code-block:: python
