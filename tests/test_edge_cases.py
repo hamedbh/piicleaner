@@ -697,3 +697,70 @@ print(json.dumps({{
         b = Cleaner(["nino", "telephone", "case-id"])
         assert a.clean_pii(text, "redact") == b.clean_pii(text, "redact")
         assert a.detect_pii(text) == b.detect_pii(text)
+
+
+class TestDataFrameKeywordOnlyArgs:
+    """`ignore_case` and `new_column_name` are keyword-only, so a new column
+    name passed positionally fails loudly instead of being taken as
+    `ignore_case`."""
+
+    @staticmethod
+    def frames():
+        import pandas as pd
+        import polars as pl
+
+        data = {"text": ["Email a@b.com"]}
+        return {
+            "clean_dataframe": pl.DataFrame(data),
+            "detect_dataframe": pl.DataFrame(data),
+            "clean_pandas_dataframe": pd.DataFrame(data),
+            "detect_pandas_dataframe": pd.DataFrame(data),
+        }
+
+    @pytest.mark.parametrize(
+        "method",
+        [
+            "clean_dataframe",
+            "detect_dataframe",
+            "clean_pandas_dataframe",
+            "detect_pandas_dataframe",
+        ],
+    )
+    def test_positional_optional_args_rejected(self, method):
+        df = self.frames()[method]
+        func = getattr(Cleaner(), method)
+        args = (
+            (df, "text", "redact")
+            if method.startswith("clean")
+            else (
+                df,
+                "text",
+            )
+        )
+        with pytest.raises(TypeError, match="positional argument"):
+            func(*args, "new_col")
+        with pytest.raises(TypeError, match="positional argument"):
+            func(*args, True, "new_col")
+
+    @pytest.mark.parametrize(
+        "method",
+        [
+            "clean_dataframe",
+            "detect_dataframe",
+            "clean_pandas_dataframe",
+            "detect_pandas_dataframe",
+        ],
+    )
+    def test_keyword_args_accepted(self, method):
+        df = self.frames()[method]
+        func = getattr(Cleaner(), method)
+        args = (
+            (df, "text", "redact")
+            if method.startswith("clean")
+            else (
+                df,
+                "text",
+            )
+        )
+        result = func(*args, ignore_case=False, new_column_name="new_col")
+        assert "new_col" in result.columns

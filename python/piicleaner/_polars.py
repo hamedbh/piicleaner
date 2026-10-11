@@ -23,8 +23,9 @@ class PolarsCleanerMixin:
         df: pl.DataFrame,
         column_name: str,
         cleaning: str,
+        *,
         ignore_case: bool = True,
-        new_column_name: str = None,
+        new_column_name: str | None = None,
     ):
         """Clean PII in a Polars DataFrame column.
 
@@ -78,8 +79,9 @@ class PolarsCleanerMixin:
         self,
         df: pl.DataFrame,
         column_name: str,
+        *,
         ignore_case: bool = True,
-        new_column_name: str = None,
+        new_column_name: str | None = None,
     ):
         """Detect PII in a Polars DataFrame column.
 
