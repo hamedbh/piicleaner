@@ -63,7 +63,8 @@ fn collect_matches(text: &str, cleaners: &[&str], ignore_case: bool) -> Vec<Matc
     matches
 }
 
-/// Core function to detect PII with specific cleaners
+/// Core function to detect PII with specific cleaners. Offsets are UTF-8 byte
+/// offsets into `text`; the Python bindings convert them to character offsets.
 pub fn detect_pii_with_cleaners_core(
     text: &str,
     cleaners: &[&str],
