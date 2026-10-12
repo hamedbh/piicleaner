@@ -183,8 +183,8 @@ print(Cleaner.get_available_cleaners())
 |------|-------------|---------|
 | `email` | Email addresses | `john@example.com` |
 | `telephone` | UK phone numbers | `+44 20 7946 0958` |
-| `postcode` | UK postcodes | `SW1A 1AA` |
-| `nino` | National Insurance numbers | `AB123456C` |
+| `postcode` | UK postcodes, with any whitespace (or none) between the two halves | `SW1A 1AA`, `SW1A1AA` |
+| `nino` | National Insurance numbers, with spaces, dashes or dots between groups | `AB123456C`, `AB-12-34-56-C`, `AB 123 456 C` |
 | `address` | Street addresses | `123 High Street` |
 | `cash-amount` | Currency amounts | `£1,500`, `$2000` |
 | `case-id` | Case/reference IDs | UUIDs, reference numbers |

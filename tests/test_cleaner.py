@@ -546,3 +546,38 @@ class TestCaseInsensitiveDetection:
 
         assert any("JOHN@EXAMPLE.COM" in text for text in pii_texts)
         assert not any("+44 20 1234 5678" in text for text in pii_texts)
+
+
+class TestPatternGaps:
+    """Formats that used to be missed (#49, #67), checked end to end with
+    all cleaners enabled."""
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "x AB-12-34-56-C y",
+            "x AB.12.34.56.C y",
+            "x AB 123 456 C y",
+            "x ab-12-34-56-c y",
+        ],
+    )
+    def test_nino_separators(self, text):
+        assert Cleaner().clean_pii(text, "redact") == "x [nino-redacted] y"
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "x SW1A  1AA y",
+            "x SW1A\t1AA y",
+            "x SW1A\n1AA y",
+        ],
+    )
+    def test_postcode_whitespace(self, text):
+        assert Cleaner().clean_pii(text, "redact") == "x [postcode-redacted] y"
+
+    def test_phone_numbers_not_labelled_as_nino(self):
+        text = "call 07700 900123 or Tel 01234 567890"
+        cleaned = Cleaner().clean_pii(text, "redact")
+        assert cleaned == (
+            "call [telephone-redacted] or Tel [telephone-redacted]"
+        )

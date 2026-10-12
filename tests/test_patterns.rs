@@ -111,6 +111,9 @@ fn test_nino_pattern_matching() {
         ("AB123456C", true),
         ("AB 12 34 56 C", true),
         ("AB  12  34  56  C", true),
+        ("AB-12-34-56-C", true),
+        ("AB.12.34.56.C", true),
+        ("AB 123 456 C", true),
         ("QQ123456C", false), // Invalid prefix
         ("AB123456", true),   // Valid without suffix (pattern allows optional suffix)
         ("123456789", false), // Not a NINO
@@ -181,6 +184,52 @@ fn test_nino_case_sensitive_requires_upper_case() {
 }
 
 #[test]
+fn test_nino_separators_and_groupings_match_whole() {
+    let nino_patterns = get_patterns_by_name(&["nino"]);
+    let re = regex::RegexBuilder::new(nino_patterns[0])
+        .case_insensitive(true)
+        .build()
+        .unwrap();
+
+    let test_cases = vec![
+        ("x AB-12-34-56-C y", "AB-12-34-56-C"),
+        ("x AB.12.34.56.C y", "AB.12.34.56.C"),
+        ("x AB 123 456 C y", "AB 123 456 C"),
+        ("x AB 123 456C y", "AB 123 456C"),
+        ("x AB123 456 y", "AB123 456"),
+        ("x AB-123-456-C y", "AB-123-456-C"),
+        ("x ab-12-34-56-c y", "ab-12-34-56-c"),
+        ("x ab 123 456 c y", "ab 123 456 c"),
+        // Mixed separators
+        ("x AB 12-34.56 C y", "AB 12-34.56 C"),
+    ];
+
+    for (text, expected) in test_cases {
+        let found = re.find(text).map(|m| m.as_str());
+        assert_eq!(found, Some(expected), "NINO match in '{}' incorrect", text);
+    }
+}
+
+#[test]
+fn test_nino_does_not_match_inside_phone_numbers() {
+    let nino_patterns = get_patterns_by_name(&["nino"]);
+    let re = regex::RegexBuilder::new(nino_patterns[0])
+        .case_insensitive(true)
+        .build()
+        .unwrap();
+
+    // Allowing separators between any digits would match e.g. "ll 07700 9"
+    for text in [
+        "call 07700 900123",
+        "Tel 01234 567890",
+        "tel 020 7946 0958",
+        "call 01632 960 001",
+    ] {
+        assert_eq!(re.find(text), None, "NINO matched in '{}'", text);
+    }
+}
+
+#[test]
 fn test_postcode_pattern_matching() {
     let postcode_patterns = get_patterns_by_name(&["postcode"]);
     let re = regex::Regex::new(postcode_patterns[0]).unwrap();
@@ -190,6 +239,7 @@ fn test_postcode_pattern_matching() {
         ("M1 1AA", true),
         ("B33 8TH", true),
         ("W1A 0AX", true),
+        ("SW1A1AA", true),
         ("INVALID", false),
         ("12345", false),
     ];
@@ -200,6 +250,33 @@ fn test_postcode_pattern_matching() {
             matches, should_match,
             "Postcode '{}' match result incorrect",
             postcode
+        );
+    }
+}
+
+#[test]
+fn test_postcode_any_whitespace_matches_whole() {
+    let postcode_patterns = get_patterns_by_name(&["postcode"]);
+    let re = regex::Regex::new(postcode_patterns[0]).unwrap();
+
+    let test_cases = vec![
+        ("x SW1A1AA y", "SW1A1AA"),
+        ("x SW1A 1AA y", "SW1A 1AA"),
+        ("x SW1A  1AA y", "SW1A  1AA"),
+        ("x SW1A   1AA y", "SW1A   1AA"),
+        ("x SW1A\t1AA y", "SW1A\t1AA"),
+        ("x SW1A\n1AA y", "SW1A\n1AA"),
+        ("x SW1A\r\n1AA y", "SW1A\r\n1AA"),
+        ("x M1  1AA y", "M1  1AA"),
+    ];
+
+    for (text, expected) in test_cases {
+        let found = re.find(text).map(|m| m.as_str());
+        assert_eq!(
+            found,
+            Some(expected),
+            "Postcode match in '{}' incorrect",
+            text.escape_debug()
         );
     }
 }
