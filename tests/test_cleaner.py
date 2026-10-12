@@ -191,9 +191,9 @@ class TestPIICleaning:
 
     def test_clean_list_invalid_elements(self, cleaner):
         """Test clean_list with non-string elements raises TypeError."""
-        with pytest.raises(
-            TypeError, match="'int' object cannot be converted to 'PyString'"
-        ):
+        # Match only the offending type: pyo3 changes the wording between
+        # versions
+        with pytest.raises(TypeError, match="'int'"):
             cleaner.clean_pii_list(
                 ["valid string", 123, "another string"], "redact"
             )

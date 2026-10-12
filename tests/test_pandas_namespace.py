@@ -330,12 +330,14 @@ class TestPandasNamespaceBatch:
         with pytest.raises(ValueError, match="Invalid cleaning method"):
             series.pii.clean_pii("redcat")
 
-    def test_nulls_are_returned_unchanged(self):
-        series = pd.Series(["a@b.com", None, np.nan, "x"])
+    def test_nulls_stay_null(self):
+        # pandas 3 stores the nulls in a str result as NaN, as Series.apply
+        # does, so check for null rather than for a particular null value
+        series = pd.Series(["a@b.com", None, np.nan, "x"], dtype=object)
         cleaned = series.pii.clean_pii("redact")
         assert cleaned.iloc[0] == "[email-redacted]"
-        assert cleaned.iloc[1] is None
-        assert np.isnan(cleaned.iloc[2])
+        assert pd.isna(cleaned.iloc[1])
+        assert pd.isna(cleaned.iloc[2])
         assert cleaned.iloc[3] == "x"
 
         detected = series.pii.detect_pii()
@@ -345,9 +347,24 @@ class TestPandasNamespaceBatch:
         series = pd.Series(["a@b.com", pd.NA, "x"], dtype="string")
         cleaned = series.pii.clean_pii("redact")
         assert cleaned.iloc[0] == "[email-redacted]"
-        assert cleaned.iloc[1] is pd.NA
+        assert pd.isna(cleaned.iloc[1])
         assert cleaned.iloc[2] == "x"
         assert series.pii.detect_pii().iloc[1] == []
+
+    @pytest.mark.parametrize(
+        "series",
+        [
+            pd.Series(["a@b.com", None, "x"]),
+            pd.Series(["a@b.com", None, "x"], dtype=object),
+            pd.Series(["a@b.com", pd.NA, "x"], dtype="string"),
+        ],
+        ids=["default", "object", "string"],
+    )
+    def test_clean_dtype_matches_apply(self, series):
+        """clean_pii returns the dtype Series.apply would (object on pandas
+        2, str on pandas 3), as it did before the batch rewrite"""
+        expected = series.apply(lambda v: v).dtype
+        assert series.pii.clean_pii("redact").dtype == expected
 
     def test_index_and_name_preserved(self):
         series = pd.Series(["a@b.com", None, "y"], index=[30, 10, 20], name="t")

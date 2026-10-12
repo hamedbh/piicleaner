@@ -91,9 +91,8 @@ if PANDAS_AVAILABLE:
                 next(batch) if ok else v
                 for v, ok in zip(values, not_null, strict=True)
             ]
+            # Let pandas infer the dtype, as Series.apply does: object on
+            # pandas 2, str on pandas 3
             return pd.Series(
-                results,
-                index=self._obj.index,
-                name=self._obj.name,
-                dtype=object,
+                results, index=self._obj.index, name=self._obj.name
             )
