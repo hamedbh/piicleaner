@@ -42,11 +42,8 @@ jobs:
           target/
         key: ${{ runner.os }}-py${{ matrix.python-version }}-cargo-${{ hashFiles('**/Cargo.lock') }}
     
-    - name: Install dependencies
+    - name: Install dependencies and build package
       run: uv sync --dev
-    
-    - name: Build package
-      run: uv run maturin develop
     
     - name: Run Rust tests
       run: uv run cargo test
