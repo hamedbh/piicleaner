@@ -5,8 +5,10 @@ import pytest
 # Skip all tests if pandas is not available
 pytest.importorskip("pandas")
 
+import numpy as np
 import pandas as pd
 import piicleaner  # noqa: F401
+from piicleaner import Cleaner
 
 
 class TestPandasNamespace:
@@ -297,3 +299,75 @@ class TestPandasNamespace:
         assert result.iloc[0]  # Should contain "REDACTED"
         assert result.iloc[1]  # Should contain "REDACTED"
         assert not result.iloc[2]  # Should not contain "REDACTED"
+
+
+class TestPandasNamespaceBatch:
+    """The .pii accessor processes a Series in one batch call (#34)"""
+
+    @pytest.mark.parametrize(
+        "series",
+        [
+            pd.Series([], dtype=object),
+            pd.Series([], dtype="string"),
+            pd.Series([None, None]),
+            pd.Series([pd.NA, pd.NA], dtype="string"),
+        ],
+        ids=["empty", "empty-string-dtype", "all-none", "all-na"],
+    )
+    def test_unknown_cleaner_raises_without_data(self, series):
+        """A typo in cleaners is reported even if there's nothing to clean"""
+        with pytest.raises(ValueError, match="Unknown cleaner"):
+            series.pii.clean_pii("redact", cleaners=["emial"])
+        with pytest.raises(ValueError, match="Unknown cleaner"):
+            series.pii.detect_pii(cleaners=["emial"])
+
+    @pytest.mark.parametrize(
+        "series",
+        [pd.Series([], dtype=object), pd.Series([None, None])],
+        ids=["empty", "all-none"],
+    )
+    def test_invalid_cleaning_method_raises_without_data(self, series):
+        with pytest.raises(ValueError, match="Invalid cleaning method"):
+            series.pii.clean_pii("redcat")
+
+    def test_nulls_are_returned_unchanged(self):
+        series = pd.Series(["a@b.com", None, np.nan, "x"])
+        cleaned = series.pii.clean_pii("redact")
+        assert cleaned.iloc[0] == "[email-redacted]"
+        assert cleaned.iloc[1] is None
+        assert np.isnan(cleaned.iloc[2])
+        assert cleaned.iloc[3] == "x"
+
+        detected = series.pii.detect_pii()
+        assert detected.tolist()[1:] == [[], [], []]
+
+    def test_string_dtype_na(self):
+        series = pd.Series(["a@b.com", pd.NA, "x"], dtype="string")
+        cleaned = series.pii.clean_pii("redact")
+        assert cleaned.iloc[0] == "[email-redacted]"
+        assert cleaned.iloc[1] is pd.NA
+        assert cleaned.iloc[2] == "x"
+        assert series.pii.detect_pii().iloc[1] == []
+
+    def test_index_and_name_preserved(self):
+        series = pd.Series(["a@b.com", None, "y"], index=[30, 10, 20], name="t")
+        for result in [series.pii.clean_pii("redact"), series.pii.detect_pii()]:
+            assert list(result.index) == [30, 10, 20]
+            assert result.name == "t"
+
+    def test_results_match_cleaner_list_methods(self):
+        """The accessor gives the same results as the batch Cleaner methods"""
+        texts = [
+            "Contact john@example.com",
+            "NINO: AB-12-34-56-C",
+            "Café at SW1A  1AA",
+            "No PII here",
+        ]
+        series = pd.Series(texts)
+        cleaner = Cleaner()
+        assert series.pii.clean_pii("redact").tolist() == (
+            cleaner.clean_pii_list(texts, "redact")
+        )
+        assert series.pii.detect_pii().tolist() == cleaner.detect_pii_list(
+            texts
+        )
