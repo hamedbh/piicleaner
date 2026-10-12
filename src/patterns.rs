@@ -27,10 +27,18 @@ impl PatternRegistry {
             (
                 "nino",
                 vec![
-                    r"[A-CEGHJ-PR-TW-Z]{1}\s{0,2}[A-CEGHJ-NPR-TW-Z]{1}\s{0,2}[0-9]{2}\s{0,2}[0-9]{2}\s{0,2}[0-9]{2}(?:\s{1,2}[A-D]\b|[A-D])?",
+                    // Up to two spaces, dashes or dots between groups, with the
+                    // digits grouped 2-2-2 or 3-3. Separators are not allowed
+                    // between any digits, as that matches inside phone numbers
+                    // (e.g. "ca[ll 07700 9]00123"). The 3-3 form must end at a
+                    // word boundary or suffix letter, so "020 794" in
+                    // "020 7946 0958" isn't matched.
+                    r"[A-CEGHJ-PR-TW-Z][\s\-.]{0,2}[A-CEGHJ-NPR-TW-Z][\s\-.]{0,2}(?:[0-9]{2}[\s\-.]{0,2}[0-9]{2}[\s\-.]{0,2}[0-9]{2}|[0-9]{3}[\s\-.]{0,2}[0-9]{3}(?:\b|[A-D]))(?:[\s\-.]{1,2}[A-D]\b|[A-D])?",
                 ],
             ),
-            ("postcode", vec![r"\b[A-Z]{1,2}\d[A-Z\d]? ?\d[A-Z]{2}\b"]),
+            // Any whitespace between the outward and inward codes, including double
+            // spaces, tabs and line breaks
+            ("postcode", vec![r"\b[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}\b"]),
             (
                 "telephone",
                 vec![
