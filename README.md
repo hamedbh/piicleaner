@@ -245,7 +245,7 @@ PIICleaner is built with Rust for maximum performance:
 
 ## Requirements
 
-- Python ≥ 3.10
+- Python ≥ 3.11
 - Polars ≥ 1.0.0 (optional, for Polars DataFrame support)
 - Pandas ≥ 2.0.0 (optional, for Pandas DataFrame support)
 
