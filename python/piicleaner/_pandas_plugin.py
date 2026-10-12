@@ -26,29 +26,41 @@ if PANDAS_AVAILABLE:
         def detect_pii(
             self, cleaners: str | list[str] = "all", ignore_case: bool = True
         ) -> pd.Series:
-            """Detect PII in text and return matches as list of dicts."""
+            """Detect PII in text and return matches as list of dicts.
 
+            All non-null values are processed in one call to the batch Rust
+            function. Cleaner names are validated immediately, even if the
+            Series is empty or all null.
+            """
             if isinstance(cleaners, str):
                 cleaners = [cleaners]
 
-            def _convert_matches(text_val):
-                if pd.isna(text_val):
-                    return []
-                matches = piicleaner.detect_pii_with_cleaners(
-                    text_val, cleaners, ignore_case
+            not_null = self._obj.notna().tolist()
+            texts = [
+                v
+                for v, ok in zip(self._obj.tolist(), not_null, strict=True)
+                if ok
+            ]
+            batch = iter(
+                piicleaner.detect_pii_with_cleaners_batch(
+                    texts, cleaners, ignore_case
                 )
-                # Convert tuples to dictionaries
-                return [
-                    {
-                        "start": start,
-                        "end": end,
-                        "text": text,
-                        "type": pii_type,
-                    }
-                    for start, end, text, pii_type in matches
+            )
+            results = [
+                [
+                    {"start": start, "end": end, "text": text, "type": pii_type}
+                    for start, end, text, pii_type in next(batch)
                 ]
-
-            return self._obj.apply(_convert_matches)
+                if ok
+                else []
+                for ok in not_null
+            ]
+            return pd.Series(
+                results,
+                index=self._obj.index,
+                name=self._obj.name,
+                dtype=object,
+            )
 
         def clean_pii(
             self,
@@ -57,16 +69,31 @@ if PANDAS_AVAILABLE:
             ignore_case: bool = True,
             replace_string: str | None = None,
         ) -> pd.Series:
-            """Clean PII from text."""
+            """Clean PII from text.
 
+            All non-null values are processed in one call to the batch Rust
+            function; null values are returned unchanged. Cleaner names and the
+            cleaning method are validated immediately, even if the Series is
+            empty or all null.
+            """
             if isinstance(cleaners, str):
                 cleaners = [cleaners]
 
-            def _clean_text(text_val):
-                if pd.isna(text_val):
-                    return text_val
-                return piicleaner.clean_pii_with_cleaners(
-                    text_val, cleaners, cleaning, ignore_case, replace_string
+            values = self._obj.tolist()
+            not_null = self._obj.notna().tolist()
+            texts = [v for v, ok in zip(values, not_null, strict=True) if ok]
+            batch = iter(
+                piicleaner.clean_pii_with_cleaners_batch(
+                    texts, cleaners, cleaning, ignore_case, replace_string
                 )
-
-            return self._obj.apply(_clean_text)
+            )
+            results = [
+                next(batch) if ok else v
+                for v, ok in zip(values, not_null, strict=True)
+            ]
+            return pd.Series(
+                results,
+                index=self._obj.index,
+                name=self._obj.name,
+                dtype=object,
+            )
