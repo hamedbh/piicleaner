@@ -1,5 +1,4 @@
 name: CI
-# Test caching improvements
 
 on:
   push:
@@ -8,31 +7,35 @@ on:
     branches: [ main ]
 
 jobs:
-  test:
+  # Build the extension once per OS and run the Rust tests. The extension
+  # uses the stable ABI (abi3), so the same wheel installs on every Python
+  # version the test job covers
+  build:
+    name: Build wheel and run Rust tests (${{ matrix.os }})
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-        python-version: ['3.11', '3.12', '3.13', '3.14', '3.15']
-    
+
     runs-on: ${{ matrix.os }}
-    
+
     steps:
     - uses: actions/checkout@v4
-    
+
     - name: Install uv
       uses: astral-sh/setup-uv@v3
       with:
         version: "latest"
         enable-cache: true
         cache-dependency-glob: "**/uv.lock"
-        cache-suffix: "${{ matrix.os }}-py${{ matrix.python-version }}"
-    
-    - name: Set up Python ${{ matrix.python-version }}
-      run: uv python install ${{ matrix.python-version }}
-    
+        cache-suffix: "${{ matrix.os }}-build"
+
+    # The oldest supported Python, which the abi3 wheel targets
+    - name: Set up Python 3.11
+      run: uv python install 3.11
+
     - name: Install Rust
       uses: dtolnay/rust-toolchain@stable
-    
+
     - name: Cache Rust dependencies
       uses: actions/cache@v4
       with:
@@ -40,19 +43,69 @@ jobs:
           ~/.cargo/registry
           ~/.cargo/git
           target/
-        key: ${{ runner.os }}-py${{ matrix.python-version }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-    
-    - name: Install dependencies and build package
-      run: uv sync --dev
-    
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: ${{ runner.os }}-cargo-
+
+    - name: Build wheel
+      run: uv build --wheel --python 3.11 --out-dir dist
+
+    # A bare venv gives pyo3 an interpreter without building the package
     - name: Run Rust tests
-      run: uv run cargo test
-    
+      run: |
+        uv venv --python 3.11
+        uv run --no-sync cargo test
+
+    - name: Store wheel
+      uses: actions/upload-artifact@v4
+      with:
+        name: wheel-${{ matrix.os }}
+        path: dist/*.whl
+
+  # Install the wheel built above and run the Python tests against it. No
+  # Rust is compiled here
+  test:
+    name: Test (${{ matrix.os }}, ${{ matrix.python-version }})
+    needs: build
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python-version: ['3.11', '3.12', '3.13', '3.14', '3.15']
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v3
+      with:
+        version: "latest"
+        enable-cache: true
+        cache-dependency-glob: "**/uv.lock"
+        cache-suffix: "${{ matrix.os }}-py${{ matrix.python-version }}"
+
+    - name: Set up Python ${{ matrix.python-version }}
+      run: uv python install ${{ matrix.python-version }}
+
+    - name: Download wheel
+      uses: actions/download-artifact@v4
+      with:
+        name: wheel-${{ matrix.os }}
+        path: dist
+
+    # Dev dependencies only, then the built wheel in place of an editable
+    # build of the project. Bash, so the wildcard expands on Windows too
+    - name: Install dependencies and the wheel
+      shell: bash
+      run: |
+        uv sync --dev --no-install-project --python ${{ matrix.python-version }}
+        uv pip install dist/*.whl
+
+    - name: Show which extension is tested
+      run: uv run --no-sync python -c "import piicleaner._internal as m; print(m.__file__)"
+
     - name: Run Python tests
-      run: uv run pytest -v -m "not performance"
-    
+      run: uv run --no-sync pytest -v -m "not performance"
+
     - name: Check code formatting
-      run: uv run ruff check
-    
-    - name: Build wheels
-      run: uv run maturin build --release
+      run: uv run --no-sync ruff check
