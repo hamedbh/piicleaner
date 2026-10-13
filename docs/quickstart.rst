@@ -35,7 +35,7 @@ With optional dependencies:
 Platform Support
 ~~~~~~~~~~~~~~~~
 
-PIICleaner provides pre-built wheels for:
+PIICleaner provides pre-built wheels for the platforms below. Each wheel works on every Python version from 3.11 onwards, including new releases.
 
 - **Windows**: x86_64 (Intel/AMD 64-bit)
 - **macOS**: x86_64 (Intel) and arm64 (Apple Silicon)  

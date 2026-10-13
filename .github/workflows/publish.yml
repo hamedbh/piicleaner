@@ -39,7 +39,8 @@ jobs:
           name: python-sdist
           path: dist/*.tar.gz
 
-  # Build wheels for all platforms
+  # Build wheels for all platforms. The extension uses the stable ABI
+  # (pyo3's abi3-py311 feature), so one wheel per platform covers Python 3.11+
   build-wheels:
     name: Build wheels on ${{ matrix.platform.os }}
     runs-on: ${{ matrix.platform.os }}
@@ -59,24 +60,30 @@ jobs:
           - os: macos-latest
             target: aarch64
             manylinux: false
-        python-version: ["3.11", "3.12", "3.13", "3.14", "3.15"]
     
     steps:
       - uses: actions/checkout@v4
       
+      # The oldest supported Python, which maturin needs on Windows to link
+      # against python3.dll
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:
           target: ${{ matrix.platform.target }}
           manylinux: ${{ matrix.platform.manylinux }}
-          args: --release --out dist --interpreter python${{ matrix.python-version }}
+          args: --release --out dist
           sccache: 'true'
           rust-toolchain: stable
       
       - name: Store wheels
         uses: actions/upload-artifact@v4
         with:
-          name: python-wheels-${{ matrix.platform.os }}-${{ matrix.platform.target }}-${{ matrix.python-version }}
+          name: python-wheels-${{ matrix.platform.os }}-${{ matrix.platform.target }}
           path: dist/*.whl
 
   # Merge all artifacts into one for easier downloading
@@ -216,9 +223,12 @@ jobs:
           print("Waiting 60 seconds for TestPyPI to update ...")
           time.sleep(60)
       
+      # --only-binary stops pip quietly building from the sdist (the runners
+      # have Rust), so this fails if the abi3 wheel doesn't install
       - name: Install from TestPyPI
         run: |
-          pip install --index-url https://test.pypi.org/simple/ \
+          pip install --only-binary piicleaner \
+            --index-url https://test.pypi.org/simple/ \
             --extra-index-url https://pypi.org/simple/ \
             piicleaner
       
