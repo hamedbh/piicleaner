@@ -8,9 +8,15 @@ name = "piicleaner"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
+polars-arrow = { version = "0.55.1", default-features = false }
+polars-core = { version = "0.55.1", default-features = false, features = ["dtype-struct"] }
+polars-error = "0.55.1"
+polars-ffi = "0.55.1"
 pyo3 = { version = "0.29.3", features = ["extension-module", "abi3-py311"] }
+pyo3-polars = { version = "0.28.0", features = ["derive"] }
 rayon = "1.10"
 regex = "1.11"
+serde = { version = "1", features = ["derive"] }
 
 [dev-dependencies]
 criterion = "0.6.0"

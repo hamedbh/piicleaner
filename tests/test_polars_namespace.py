@@ -5,8 +5,9 @@ import pytest
 # Skip all tests if polars is not available
 pytest.importorskip("polars")
 
-import piicleaner  # noqa: F401
+import piicleaner
 import polars as pl
+from piicleaner import Cleaner
 
 
 class TestPolarsNamespace:
@@ -182,3 +183,130 @@ class TestPolarsNamespace:
         # None should also fail if passed somehow
         with pytest.raises((ValueError, TypeError)):
             df.with_columns(pl.col("text").pii.clean_pii(None).alias("cleaned"))
+
+
+class TestPolarsPlugin:
+    """The namespace and DataFrame methods run as a native Polars plugin"""
+
+    TEXTS = [
+        "Contact a@b.com",
+        None,
+        "No PII here",
+        "Café a@b.com and AB123456C",
+        "東京 W1 2BC £1,500",
+        "",
+    ]
+
+    @staticmethod
+    def _expected_detect(texts, cleaners=None):
+        return [
+            None
+            if t is None
+            else [
+                {"start": s, "end": e, "text": x, "type": y}
+                for s, e, x, y in (
+                    piicleaner.detect_pii(t)
+                    if cleaners is None
+                    else piicleaner.detect_pii_with_cleaners(t, cleaners)
+                )
+            ]
+            for t in texts
+        ]
+
+    def test_results_match_list_functions(self):
+        df = pl.DataFrame({"t": self.TEXTS}, schema={"t": pl.String})
+        out = df.select(
+            clean=pl.col("t").pii.clean_pii("redact"),
+            detect=pl.col("t").pii.detect_pii(),
+        )
+        assert out["clean"].to_list() == [
+            None if t is None else piicleaner.clean_pii(t, "redact")
+            for t in self.TEXTS
+        ]
+        assert out["detect"].to_list() == self._expected_detect(self.TEXTS)
+
+    def test_offsets_are_characters(self):
+        df = pl.DataFrame({"t": ["Café a@b.com"]})
+        (match,) = df.select(pl.col("t").pii.detect_pii())["t"][0]
+        assert "Café a@b.com"[match["start"] : match["end"]] == "a@b.com"
+
+    def test_detection_dtype_is_the_same_for_both_apis(self):
+        """Regression test for #35: offsets are Int64 in both APIs"""
+        df = pl.DataFrame({"t": ["a@b.com"]})
+        expected = pl.List(
+            pl.Struct(
+                {
+                    "start": pl.Int64,
+                    "end": pl.Int64,
+                    "text": pl.String,
+                    "type": pl.String,
+                }
+            )
+        )
+        namespace = df.select(pl.col("t").pii.detect_pii())["t"]
+        method = Cleaner().detect_dataframe(df, "t")["t_pii_detected"]
+        assert namespace.dtype == expected
+        assert method.dtype == expected
+
+    def test_lazy_frame(self):
+        lf = pl.LazyFrame({"t": self.TEXTS}, schema={"t": pl.String})
+        out = lf.select(
+            clean=pl.col("t").pii.clean_pii("replace", replace_string="X"),
+            detect=pl.col("t").pii.detect_pii(["email"]),
+        ).collect()
+        assert out["clean"].to_list() == [
+            None
+            if t is None
+            else piicleaner.clean_pii(t, "replace", replace_string="X")
+            for t in self.TEXTS
+        ]
+        assert out["detect"].to_list() == self._expected_detect(
+            self.TEXTS, ["email"]
+        )
+
+    def test_multiple_chunks(self):
+        df = pl.DataFrame({"t": self.TEXTS}, schema={"t": pl.String})
+        chunked = pl.concat([df, df], rechunk=False)
+        assert chunked["t"].n_chunks() == 2
+        out = chunked.select(pl.col("t").pii.clean_pii("redact"))["t"]
+        assert out.to_list() == (
+            df.select(pl.col("t").pii.clean_pii("redact"))["t"].to_list() * 2
+        )
+
+    def test_empty_and_all_null_columns(self):
+        for values in ([], [None, None]):
+            df = pl.DataFrame({"t": values}, schema={"t": pl.String})
+            out = df.select(
+                clean=pl.col("t").pii.clean_pii("redact"),
+                detect=pl.col("t").pii.detect_pii(),
+            )
+            assert out["clean"].to_list() == values
+            assert out["detect"].to_list() == values
+
+    @pytest.mark.parametrize(
+        "build",
+        [
+            lambda: pl.col("t").pii.clean_pii("redact", cleaners="nope"),
+            lambda: pl.col("t").pii.detect_pii(["email", "nope"]),
+        ],
+    )
+    def test_unknown_cleaner_raises_when_expression_is_built(self, build):
+        with pytest.raises(ValueError, match="Unknown cleaner"):
+            build()
+
+    def test_dataframe_methods_use_cleaner_settings(self):
+        cleaner = Cleaner(cleaners=["email"], replace_string="X")
+        df = pl.DataFrame({"t": ["a@b.com and AB123456C", None]})
+        cleaned = cleaner.clean_dataframe(df, "t", "replace")["t"]
+        assert cleaned.to_list() == ["X", None]
+        detected = cleaner.detect_dataframe(df, "t")["t_pii_detected"]
+        assert [[m["type"] for m in row] for row in detected] == [["email"], []]
+
+    def test_clean_dataframe_casts_non_string_columns(self):
+        df = pl.DataFrame({"n": [1234567890, None]})
+        cleaned = Cleaner().clean_dataframe(df, "n", "redact")["n"]
+        assert cleaned.dtype == pl.String
+        assert cleaned.to_list() == [
+            piicleaner.clean_pii("1234567890", "redact"),
+            None,
+        ]
