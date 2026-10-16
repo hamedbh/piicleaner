@@ -230,7 +230,7 @@ Type                      Description                                    Example
 ``cash-amount``           Currency amounts                               £1,500, $2000
 ``case-id``               Case/reference IDs                             UUIDs, reference numbers
 ``tag``                   HTML/XML tags                                  <script>, <div>
-``ip_address``            IP addresses                                   192.168.1.1
+``ip_address``            IPv4 and IPv6 addresses                        192.168.1.1, 2001:db8::1, fe80::1%eth0
 ========================  =============================================  ===================
 
 Cleaning Methods

@@ -664,6 +664,25 @@ mod tests {
     }
 
     #[test]
+    fn test_ipv6_addresses_redacted_whole() {
+        // With every cleaner on, each address is redacted as one ip_address
+        // span; the IPv4 tail of a mapped address doesn't leave "::ffff:"
+        for ip in [
+            "2001:db8::1",
+            "2001:0db8:85a3:0000:0000:8a2e:0370:7334",
+            "fe80::1%eth0",
+            "::ffff:192.168.1.1",
+            "::1",
+        ] {
+            let text = format!("x {} y", ip);
+            for ignore_case in [false, true] {
+                let result = clean_pii_core(&text, Cleaning::Redact, ignore_case, None);
+                assert_eq!(result, "x [ip_address-redacted] y", "input: {}", ip);
+            }
+        }
+    }
+
+    #[test]
     fn test_available_cleaners_in_priority_order() {
         assert_eq!(
             patterns::get_registry().get_available_cleaners(),

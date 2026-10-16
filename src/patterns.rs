@@ -49,6 +49,16 @@ impl PatternRegistry {
                 "ip_address",
                 vec![
                     r"\b(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\b",
+                    // IPv6: the full 8-group form, the "::" compressed forms and
+                    // forms ending in an embedded IPv4 address, with an optional
+                    // zone ID. Looser than the RFC (it doesn't count the groups
+                    // either side of "::") so no valid address is missed. Each
+                    // form must start and end at a word boundary, which stops a
+                    // match ending partway through an address and keeps it out
+                    // of "HH:MM:SS" times and code such as "crate::fmt". The
+                    // boundaries are ASCII-only, which is measurably faster and
+                    // also matches an address directly after a non-ASCII letter
+                    r"(?:(?-u:\b)(?:[0-9A-Fa-f]{1,4}:){6}(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)(?-u:\b)|(?-u:\b)(?:[0-9A-Fa-f]{1,4}:){7}[0-9A-Fa-f]{1,4}(?-u:\b)|(?:(?-u:\b)[0-9A-Fa-f]{1,4}(?::[0-9A-Fa-f]{1,4}){0,6}|(?-u:\B))::(?:(?:[0-9A-Fa-f]{1,4}:){0,5}(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)(?-u:\b)|[0-9A-Fa-f]{1,4}(?::[0-9A-Fa-f]{1,4}){0,6}(?-u:\b)|(?-u:\B)))(?:%[0-9A-Za-z._~-]+)?",
                 ],
             ),
             (
