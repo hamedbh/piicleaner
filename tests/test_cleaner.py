@@ -42,6 +42,17 @@ class TestCleanerInitialisation:
         with pytest.raises(ValueError, match="Unknown cleaner"):
             Cleaner(["email", "not_a_real_cleaner"])
 
+    def test_init_empty_cleaner_list(self):
+        """An empty list would silently clean nothing, so it raises."""
+        with pytest.raises(ValueError, match="No cleaners given"):
+            Cleaner([])
+
+    @pytest.mark.parametrize("cleaners", [["all", "email"], ["all", "all"]])
+    def test_init_all_mixed_with_other_names(self, cleaners):
+        """ "all" is only valid on its own."""
+        with pytest.raises(ValueError, match="can't be combined"):
+            Cleaner(cleaners)
+
     def test_get_available_cleaners(self):
         """Test static method returns available cleaner types."""
         cleaners = Cleaner.get_available_cleaners()

@@ -294,6 +294,22 @@ class TestPolarsPlugin:
         with pytest.raises(ValueError, match="Unknown cleaner"):
             build()
 
+    @pytest.mark.parametrize(
+        "build",
+        [
+            lambda: pl.col("t").pii.clean_pii("redact", cleaners=[]),
+            lambda: pl.col("t").pii.detect_pii([]),
+            lambda: pl.col("t").pii.clean_pii(
+                "redact", cleaners=["all", "email"]
+            ),
+            lambda: pl.col("t").pii.detect_pii(["all", "email"]),
+        ],
+    )
+    def test_invalid_cleaner_list_raises_when_expression_is_built(self, build):
+        """An empty list, or "all" mixed with other names, raises (#53)"""
+        with pytest.raises(ValueError, match="No cleaners|can't be combined"):
+            build()
+
     def test_dataframe_methods_use_cleaner_settings(self):
         cleaner = Cleaner(cleaners=["email"], replace_string="X")
         df = pl.DataFrame({"t": ["a@b.com and AB123456C", None]})

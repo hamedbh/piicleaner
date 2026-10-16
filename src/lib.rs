@@ -27,14 +27,28 @@ impl Cleaning {
     }
 }
 
-/// Check every cleaner name is in the pattern registry, so callers get a
-/// clear error instead of a silent no-op or a downstream panic. The error
-/// message is shared by the Python functions and the Polars plugin.
+/// Check the cleaner list is `["all"]` or a non-empty list of names in the
+/// pattern registry, so callers get a clear error instead of a silent no-op
+/// or a downstream panic. The error messages are shared by `Cleaner`, the
+/// Python functions and the Polars plugin.
 fn check_cleaners(cleaners: &[&str]) -> Result<(), String> {
     if cleaners == ["all"] {
         return Ok(());
     }
     let available = patterns::get_registry().get_available_cleaners();
+    if cleaners.is_empty() {
+        return Err(format!(
+            "No cleaners given. Pass \"all\", or one or more of: {:?}",
+            available
+        ));
+    }
+    if cleaners.contains(&"all") {
+        return Err(format!(
+            "\"all\" can't be combined with other cleaners: {:?}. Pass \"all\" on its own, \
+             or only specific cleaners",
+            cleaners
+        ));
+    }
     let unknown: Vec<&str> = cleaners
         .iter()
         .filter(|c| !available.contains(c))

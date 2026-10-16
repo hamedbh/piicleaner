@@ -321,6 +321,15 @@ class TestPandasNamespaceBatch:
         with pytest.raises(ValueError, match="Unknown cleaner"):
             series.pii.detect_pii(cleaners=["emial"])
 
+    @pytest.mark.parametrize("cleaners", [[], ["all", "email"]])
+    def test_invalid_cleaner_list_raises(self, cleaners):
+        """An empty list, or "all" mixed with other names, raises (#53)"""
+        series = pd.Series(["a@b.com"])
+        with pytest.raises(ValueError, match="No cleaners|can't be combined"):
+            series.pii.clean_pii("redact", cleaners=cleaners)
+        with pytest.raises(ValueError, match="No cleaners|can't be combined"):
+            series.pii.detect_pii(cleaners=cleaners)
+
     @pytest.mark.parametrize(
         "series",
         [pd.Series([], dtype=object), pd.Series([None, None])],
