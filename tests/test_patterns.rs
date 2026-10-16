@@ -356,3 +356,76 @@ fn test_ip_address_pattern_matching() {
         assert_eq!(matches, should_match, "IP '{}' match result incorrect", ip);
     }
 }
+
+#[test]
+fn test_ipv6_forms_match_whole() {
+    let ip_patterns = get_patterns_by_name(&["ip_address"]);
+    let re = regex::Regex::new(ip_patterns[1]).unwrap();
+
+    let test_cases = vec![
+        // Full 8-group form
+        (
+            "x 2001:0db8:85a3:0000:0000:8a2e:0370:7334 y",
+            "2001:0db8:85a3:0000:0000:8a2e:0370:7334",
+        ),
+        (
+            "x 2001:DB8:85A3:0:0:8A2E:370:7334 y",
+            "2001:DB8:85A3:0:0:8A2E:370:7334",
+        ),
+        // "::" compressed: middle, leading, trailing
+        ("x 2001:db8::1 y", "2001:db8::1"),
+        ("x 2001:db8:0:0:1::1 y", "2001:db8:0:0:1::1"),
+        ("x ::1 y", "::1"),
+        ("x ::ffff:abcd y", "::ffff:abcd"),
+        ("x fe80:: y", "fe80::"),
+        ("x 2001:db8:: y", "2001:db8::"),
+        ("::", "::"),
+        // Embedded IPv4
+        ("x ::ffff:192.168.1.1 y", "::ffff:192.168.1.1"),
+        ("x ::192.168.1.1 y", "::192.168.1.1"),
+        ("x 64:ff9b::192.0.2.33 y", "64:ff9b::192.0.2.33"),
+        (
+            "x 0:0:0:0:0:ffff:192.168.1.1 y",
+            "0:0:0:0:0:ffff:192.168.1.1",
+        ),
+        // Zone IDs
+        ("x fe80::1%eth0 y", "fe80::1%eth0"),
+        (
+            "x fe80::1ff:fe23:4567:890a%3 y",
+            "fe80::1ff:fe23:4567:890a%3",
+        ),
+        // Bracketed with a port: the address inside is matched
+        ("http://[2001:db8::1]:8080/", "2001:db8::1"),
+        // Surrounded by punctuation
+        ("(2001:db8::1),", "2001:db8::1"),
+        ("from 2001:db8::1.", "2001:db8::1"),
+        // Directly after a non-ASCII letter
+        ("é2001:db8::1", "2001:db8::1"),
+    ];
+
+    for (text, expected) in test_cases {
+        let found = re.find(text).map(|m| m.as_str());
+        assert_eq!(found, Some(expected), "IPv6 match in '{}' incorrect", text);
+    }
+}
+
+#[test]
+fn test_ipv6_does_not_match_times_or_code() {
+    let ip_patterns = get_patterns_by_name(&["ip_address"]);
+    let re = regex::RegexBuilder::new(ip_patterns[1])
+        .case_insensitive(true)
+        .build()
+        .unwrap();
+
+    for text in [
+        "at 12:30:45 today",
+        "at 2024-01-01T12:30:45Z",
+        "MAC 00:1a:2b:3c:4d:5e",
+        "use crate::fmt;",
+        "std::io::Result",
+        "Foo::Bar::baz()",
+        "ratio 1:2:3",
+    ] {
+        assert_eq!(re.find(text), None, "IPv6 matched in '{}'", text);
+    }
+}
