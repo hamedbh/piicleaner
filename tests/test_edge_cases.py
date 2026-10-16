@@ -1,5 +1,6 @@
 """Tests for edge cases, boundary conditions, and error handling."""
 
+import piicleaner
 import pytest
 from piicleaner import (
     Cleaner,
@@ -764,3 +765,33 @@ class TestDataFrameKeywordOnlyArgs:
         )
         result = func(*args, ignore_case=False, new_column_name="new_col")
         assert "new_col" in result.columns
+
+
+class TestInvalidCleanerLists:
+    """An empty list, or "all" mixed with other names, would silently clean
+    nothing, so every module-level function raises (#53)."""
+
+    CASES = [
+        ([], "No cleaners given"),
+        (["all", "email"], "can't be combined"),
+        (["all", "all"], "can't be combined"),
+    ]
+
+    @pytest.mark.parametrize(("cleaners", "message"), CASES)
+    def test_detect_raises(self, cleaners, message):
+        with pytest.raises(ValueError, match=message):
+            detect_pii_with_cleaners("a@b.com", cleaners, True)
+        with pytest.raises(ValueError, match=message):
+            piicleaner.detect_pii_with_cleaners_batch(
+                ["a@b.com"], cleaners, True
+            )
+
+    @pytest.mark.parametrize(("cleaners", "message"), CASES)
+    @pytest.mark.parametrize("cleaning", ["redact", "replace"])
+    def test_clean_raises(self, cleaners, message, cleaning):
+        with pytest.raises(ValueError, match=message):
+            clean_pii_with_cleaners("a@b.com", cleaners, cleaning, True, None)
+        with pytest.raises(ValueError, match=message):
+            piicleaner.clean_pii_with_cleaners_batch(
+                ["a@b.com"], cleaners, cleaning, True, None
+            )

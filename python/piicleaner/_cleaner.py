@@ -43,7 +43,8 @@ class Cleaner(PolarsCleanerMixin, PandasCleanerMixin):
 
         Raises:
             TypeError: If `cleaners` is not a string or list of strings.
-            ValueError: If `cleaners` contains a name not returned by
+            ValueError: If `cleaners` is an empty list, mixes "all" with
+                other names, or contains a name not returned by
                 `get_available_cleaners()`.
         """
         if isinstance(cleaners, str):
@@ -56,14 +57,9 @@ class Cleaner(PolarsCleanerMixin, PandasCleanerMixin):
         else:
             raise TypeError("`cleaners` must be a string or list of strings")
 
-        if self.cleaners != ["all"]:
-            available = set(get_available_cleaners())
-            unknown = set(self.cleaners) - available
-            if unknown:
-                raise ValueError(
-                    f"Unknown cleaner(s): {sorted(unknown)}. "
-                    f"Available cleaners: {sorted(available)}"
-                )
+        # The Rust check raises ValueError for an empty list, "all" mixed
+        # with other names, or unknown names
+        _detect_pii_with_cleaners_batch([], self.cleaners, True)
 
         self.replace_string = replace_string
 
