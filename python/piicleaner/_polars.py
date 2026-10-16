@@ -10,7 +10,20 @@ if TYPE_CHECKING:
 try:
     import polars as pl
 
+    from piicleaner._polars_plugin import _clean_pii_expr, _detect_pii_expr
+
     POLARS_AVAILABLE = True
+
+    _DETECTION_DTYPE = pl.List(
+        pl.Struct(
+            [
+                pl.Field("start", pl.Int64),
+                pl.Field("end", pl.Int64),
+                pl.Field("text", pl.String),
+                pl.Field("type", pl.String),
+            ]
+        )
+    )
 except ImportError:
     POLARS_AVAILABLE = False
 
@@ -50,27 +63,19 @@ class PolarsCleanerMixin:
         if column_name not in df.columns:
             raise ValueError(f"Column '{column_name}' not found in DataFrame")
 
-        # Use the clean_pii_list method which respects specific cleaners
-        texts = df.get_column(column_name).to_list()
-        # Handle null values - replace with empty strings for processing
-        processed_texts = [
-            str(text) if text is not None else "" for text in texts
-        ]
-        cleaned_texts = self.clean_pii_list(
-            processed_texts, cleaning, ignore_case
-        )
-
-        # Restore null values in the results
-        for i, original_text in enumerate(texts):
-            if original_text is None:
-                cleaned_texts[i] = None
-
-        # Create new DataFrame with cleaned column
+        # Overwrite the original column by default
         if new_column_name is None:
             new_column_name = column_name
 
+        # Non-string columns are cleaned as their string form
         result_df = df.with_columns(
-            pl.Series(name=new_column_name, values=cleaned_texts)
+            _clean_pii_expr(
+                pl.col(column_name).cast(pl.String),
+                cleaning,
+                self.cleaners,
+                ignore_case,
+                self.replace_string,
+            ).alias(new_column_name)
         )
 
         return result_df
@@ -110,50 +115,15 @@ class PolarsCleanerMixin:
         if new_column_name is None:
             new_column_name = f"{column_name}_pii_detected"
 
-        # Get texts and use Cleaner's detect_pii_list method
-        texts = df.get_column(column_name).to_list()
-        # Handle null values - replace with empty strings for processing
-        processed_texts = [
-            str(text) if text is not None else "" for text in texts
-        ]
-        batch_results = self.detect_pii_list(processed_texts, ignore_case)
-
-        # Set empty results for null values
-        for i, original_text in enumerate(texts):
-            if original_text is None:
-                batch_results[i] = []
-
-        # Convert to Polars list of structs format
-        detection_results = []
-        for matches in batch_results:
-            # Convert each row's matches to list of dicts for Polars
-            row_matches = [
-                {
-                    "start": match["start"],
-                    "end": match["end"],
-                    "text": match["text"],
-                    "type": match["type"],
-                }
-                for match in matches
-            ]
-            detection_results.append(row_matches)
-
-        # Add detection results as new column
+        # Null rows give an empty list of matches, not null
+        detected = _detect_pii_expr(
+            pl.col(column_name).cast(pl.String), self.cleaners, ignore_case
+        )
         result_df = df.with_columns(
-            pl.Series(
-                name=new_column_name,
-                values=detection_results,
-                dtype=pl.List(
-                    pl.Struct(
-                        [
-                            pl.Field("start", pl.Int64),
-                            pl.Field("end", pl.Int64),
-                            pl.Field("text", pl.String),
-                            pl.Field("type", pl.String),
-                        ]
-                    )
-                ),
-            )
+            pl.when(pl.col(column_name).is_null())
+            .then(pl.lit([], dtype=_DETECTION_DTYPE))
+            .otherwise(detected)
+            .alias(new_column_name)
         )
 
         return result_df

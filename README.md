@@ -11,7 +11,7 @@ A fast, Rust-powered Python library for detecting and cleaning Personal Identifi
 - **Semantic Redaction**: Replace PII with meaningful labels like `[email-redacted]` instead of generic dashes
 - **Custom Replacement Strings**: Define your own replacement text for the "replace" cleaning method
 - **PII Type Detection**: Get detailed information about what type of PII was detected
-- **Polars Integration**: Native support for cleaning DataFrames and Series
+- **Polars Integration**: A native Polars plugin cleans whole columns in Rust, in parallel, in eager and lazy queries
 - **Pandas Integration**: Native support for cleaning DataFrames and Series
 - **Easy to Use**: Simple API for both single strings and batch processing
 
@@ -230,7 +230,7 @@ In the DataFrame methods, `ignore_case` and `new_column_name` are keyword-only, 
 - `get_available_cleaners()`: Get list of available PII types
 
 **DataFrame Integration Features:**
-- **Polars**: Native `.pii.clean_pii()` and `.pii.detect_pii()` expression namespace
+- **Polars**: `.pii.clean_pii()` and `.pii.detect_pii()` expressions, which run as a native Polars plugin (no per-row Python) and work in lazy queries. `clean_dataframe()`/`detect_dataframe()` use the same plugin
 - **Pandas**: Series accessor `.pii.clean_pii()` and `.pii.detect_pii()` methods
 - **Null Handling**: Both integrations properly handle null/missing values
 - **Vectorized Processing**: Efficient batch processing for large datasets

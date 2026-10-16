@@ -3,6 +3,7 @@ use rayon::prelude::*;
 
 pub mod core;
 pub mod patterns;
+mod polars_plugin;
 use core::Cleaning;
 
 // Type aliases to simplify complex return types
@@ -11,21 +12,25 @@ type DetectionResult = PyResult<Vec<DetectionMatch>>;
 type BatchDetectionResult = PyResult<Vec<Vec<DetectionMatch>>>;
 
 impl Cleaning {
-    fn from_str(s: &str) -> PyResult<Self> {
+    /// Parse a cleaning method name. The error message is shared by the
+    /// Python functions and the Polars plugin.
+    fn parse(s: &str) -> Result<Self, String> {
         match s {
             "replace" => Ok(Cleaning::Replace),
             "redact" => Ok(Cleaning::Redact),
-            _ => Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
-                "Invalid cleaning method: {}",
-                s
-            ))),
+            _ => Err(format!("Invalid cleaning method: {}", s)),
         }
+    }
+
+    fn from_str(s: &str) -> PyResult<Self> {
+        Self::parse(s).map_err(PyErr::new::<pyo3::exceptions::PyValueError, _>)
     }
 }
 
-/// Reject any cleaner name not present in the pattern registry, so callers
-/// get a clear error instead of a silent no-op or a downstream panic.
-fn validate_cleaners(cleaners: &[&str]) -> PyResult<()> {
+/// Check every cleaner name is in the pattern registry, so callers get a
+/// clear error instead of a silent no-op or a downstream panic. The error
+/// message is shared by the Python functions and the Polars plugin.
+fn check_cleaners(cleaners: &[&str]) -> Result<(), String> {
     if cleaners == ["all"] {
         return Ok(());
     }
@@ -38,11 +43,16 @@ fn validate_cleaners(cleaners: &[&str]) -> PyResult<()> {
     if unknown.is_empty() {
         Ok(())
     } else {
-        Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+        Err(format!(
             "Unknown cleaner(s): {:?}. Available cleaners: {:?}",
             unknown, available
-        )))
+        ))
     }
+}
+
+/// `check_cleaners`, raising a Python `ValueError`
+fn validate_cleaners(cleaners: &[&str]) -> PyResult<()> {
+    check_cleaners(cleaners).map_err(PyErr::new::<pyo3::exceptions::PyValueError, _>)
 }
 
 /// Convert the byte offsets in detection results to character offsets.
