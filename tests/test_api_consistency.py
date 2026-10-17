@@ -2,7 +2,6 @@
 `Cleaner.clean_dataframe()`/`detect_dataframe()` with a Polars or pandas
 DataFrame, the Polars `.pii` expressions and the pandas `.pii` accessor."""
 
-import datetime as dt
 import decimal
 
 import pytest
@@ -79,10 +78,12 @@ POLARS_NON_STRING = {
     "Float64": pl.Series("x", [1.5]),
     "Boolean": pl.Series("x", [True]),
     "Decimal": pl.Series("x", [decimal.Decimal("1.5")]),
-    "Date": pl.Series("x", [dt.date(2020, 1, 1)]),
-    "Datetime": pl.Series("x", [dt.datetime(2020, 1, 1)]),
-    "Duration": pl.Series("x", [dt.timedelta(1)]),
-    "Time": pl.Series("x", [dt.time(1)]),
+    # Cast from integers: Polars 1.30 can't build these from Python datetime
+    # objects on Python 3.15
+    "Date": pl.Series("x", [0], dtype=pl.Int32).cast(pl.Date),
+    "Datetime": pl.Series("x", [0]).cast(pl.Datetime),
+    "Duration": pl.Series("x", [0]).cast(pl.Duration),
+    "Time": pl.Series("x", [0]).cast(pl.Time),
     "Binary": pl.Series("x", [b"a"]),
     "Categorical": pl.Series("x", ["a@b.com"], dtype=pl.Categorical),
     "Enum": pl.Series("x", ["a@b.com"], dtype=pl.Enum(["a@b.com"])),
