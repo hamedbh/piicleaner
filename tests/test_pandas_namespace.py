@@ -180,7 +180,7 @@ class TestPandasNamespace:
         detected = df["text"].pii.detect_pii()
 
         assert pd.isna(cleaned.iloc[1])  # Null should remain null
-        assert detected.iloc[1] == []  # Null should return empty list
+        assert detected.iloc[1] is None  # Null rows give null
 
         assert "test@example.com" not in cleaned.iloc[0]
         assert cleaned.iloc[2] == "Clean text"
@@ -350,7 +350,7 @@ class TestPandasNamespaceBatch:
         assert cleaned.iloc[3] == "x"
 
         detected = series.pii.detect_pii()
-        assert detected.tolist()[1:] == [[], [], []]
+        assert detected.tolist()[1:] == [None, None, []]
 
     def test_string_dtype_na(self):
         series = pd.Series(["a@b.com", pd.NA, "x"], dtype="string")
@@ -358,7 +358,7 @@ class TestPandasNamespaceBatch:
         assert cleaned.iloc[0] == "[email-redacted]"
         assert pd.isna(cleaned.iloc[1])
         assert cleaned.iloc[2] == "x"
-        assert series.pii.detect_pii().iloc[1] == []
+        assert series.pii.detect_pii().iloc[1] is None
 
     @pytest.mark.parametrize(
         "series",

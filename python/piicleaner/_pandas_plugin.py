@@ -5,6 +5,8 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     import pandas as pd
 
+    from piicleaner._types import Cleaning
+
 try:
     import pandas as pd
 
@@ -12,7 +14,7 @@ try:
 except ImportError:
     PANDAS_AVAILABLE = False
 
-import piicleaner
+from piicleaner._pandas import _clean_series, _detect_series
 
 if PANDAS_AVAILABLE:
 
@@ -29,42 +31,19 @@ if PANDAS_AVAILABLE:
             """Detect PII in text and return matches as list of dicts.
 
             All non-null values are processed in one call to the batch Rust
-            function. Cleaner names are validated immediately, even if the
-            Series is empty or all null.
+            function; null values give None. Cleaner names are validated
+            immediately, even if the Series is empty or all null.
+
+            Raises:
+                TypeError: If the Series holds non-string values.
             """
             if isinstance(cleaners, str):
                 cleaners = [cleaners]
-
-            not_null = self._obj.notna().tolist()
-            texts = [
-                v
-                for v, ok in zip(self._obj.tolist(), not_null, strict=True)
-                if ok
-            ]
-            batch = iter(
-                piicleaner.detect_pii_with_cleaners_batch(
-                    texts, cleaners, ignore_case
-                )
-            )
-            results = [
-                [
-                    {"start": start, "end": end, "text": text, "type": pii_type}
-                    for start, end, text, pii_type in next(batch)
-                ]
-                if ok
-                else []
-                for ok in not_null
-            ]
-            return pd.Series(
-                results,
-                index=self._obj.index,
-                name=self._obj.name,
-                dtype=object,
-            )
+            return _detect_series(self._obj, cleaners, ignore_case)
 
         def clean_pii(
             self,
-            cleaning: str,
+            cleaning: Cleaning,
             cleaners: str | list[str] = "all",
             ignore_case: bool = True,
             replace_string: str | None = None,
@@ -75,24 +54,12 @@ if PANDAS_AVAILABLE:
             function; null values are returned unchanged. Cleaner names and the
             cleaning method are validated immediately, even if the Series is
             empty or all null.
+
+            Raises:
+                TypeError: If the Series holds non-string values.
             """
             if isinstance(cleaners, str):
                 cleaners = [cleaners]
-
-            values = self._obj.tolist()
-            not_null = self._obj.notna().tolist()
-            texts = [v for v, ok in zip(values, not_null, strict=True) if ok]
-            batch = iter(
-                piicleaner.clean_pii_with_cleaners_batch(
-                    texts, cleaners, cleaning, ignore_case, replace_string
-                )
-            )
-            results = [
-                next(batch) if ok else v
-                for v, ok in zip(values, not_null, strict=True)
-            ]
-            # Let pandas infer the dtype, as Series.apply does: object on
-            # pandas 2, str on pandas 3
-            return pd.Series(
-                results, index=self._obj.index, name=self._obj.name
+            return _clean_series(
+                self._obj, cleaning, cleaners, ignore_case, replace_string
             )

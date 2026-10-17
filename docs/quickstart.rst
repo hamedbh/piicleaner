@@ -170,12 +170,12 @@ Pandas DataFrames
 
    cleaner = Cleaner()
 
-   # Clean PII in DataFrame
-   cleaned_df = cleaner.clean_pandas_dataframe(df, "text", "redact", new_column_name="cleaned_text")
+   # The same DataFrame methods as for Polars
+   cleaned_df = cleaner.clean_dataframe(df, "text", "redact", new_column_name="cleaned_text")
    print(cleaned_df)
 
-   # Detect PII in DataFrame  
-   pii_df = cleaner.detect_pandas_dataframe(df, "text")
+   # Detect PII in DataFrame
+   pii_df = cleaner.detect_dataframe(df, "text")
    print(pii_df)
 
    # Using Series accessor API
@@ -268,4 +268,5 @@ By default, PIICleaner performs **case-insensitive** matching to catch PII regar
 - ``ignore_case=True`` (default): Detects ``ab123456c``, ``AB123456C``, and ``Ab123456C`` as valid NINOs
 - ``ignore_case=False``: Only detects patterns matching the exact case defined in regex patterns
 
-This ensures maximum PII detection while allowing precise control when needed.
+This ensures maximum PII detection while allowing precise control when needed. Set it once for a
+``Cleaner`` with ``Cleaner(ignore_case=False)``, or pass ``ignore_case`` to a single call.

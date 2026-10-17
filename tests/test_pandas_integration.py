@@ -35,7 +35,7 @@ class TestPandasDataFrameMethods:
 
     def test_clean_dataframe_redact(self, cleaner, sample_df):
         """Test cleaning DataFrame with redact method."""
-        result = cleaner.clean_pandas_dataframe(
+        result = cleaner.clean_dataframe(
             sample_df, "text", "redact", new_column_name="cleaned_text"
         )
 
@@ -50,7 +50,7 @@ class TestPandasDataFrameMethods:
 
     def test_clean_dataframe_replace(self, cleaner, sample_df):
         """Test cleaning DataFrame with replace method."""
-        result = cleaner.clean_pandas_dataframe(
+        result = cleaner.clean_dataframe(
             sample_df, "text", "replace", new_column_name="cleaned_text"
         )
 
@@ -66,7 +66,7 @@ class TestPandasDataFrameMethods:
     def test_clean_dataframe_overwrite_column(self, cleaner, sample_df):
         """Test cleaning DataFrame by overwriting original column."""
         original_texts = sample_df["text"].tolist()
-        result = cleaner.clean_pandas_dataframe(sample_df, "text", "redact")
+        result = cleaner.clean_dataframe(sample_df, "text", "redact")
 
         assert result.shape == sample_df.shape
         assert "text" in result.columns
@@ -77,7 +77,7 @@ class TestPandasDataFrameMethods:
 
     def test_detect_dataframe(self, cleaner, sample_df):
         """Test PII detection in DataFrame."""
-        result = cleaner.detect_pandas_dataframe(sample_df, "text")
+        result = cleaner.detect_dataframe(sample_df, "text")
 
         assert isinstance(result, pd.DataFrame)
         assert "id" in result.columns
@@ -101,24 +101,22 @@ class TestPandasDataFrameMethods:
     def test_clean_dataframe_invalid_column(self, cleaner, sample_df):
         """Test error when column doesn't exist."""
         with pytest.raises(ValueError, match="Column 'nonexistent' not found"):
-            cleaner.clean_pandas_dataframe(sample_df, "nonexistent", "redact")
+            cleaner.clean_dataframe(sample_df, "nonexistent", "redact")
 
     def test_detect_dataframe_invalid_column(self, cleaner, sample_df):
         """Test error when column doesn't exist."""
         with pytest.raises(ValueError, match="Column 'nonexistent' not found"):
-            cleaner.detect_pandas_dataframe(sample_df, "nonexistent")
+            cleaner.detect_dataframe(sample_df, "nonexistent")
 
     def test_clean_dataframe_invalid_df_type(self, cleaner):
         """Test error with non-DataFrame input."""
-        with pytest.raises(TypeError, match="df must be a pandas DataFrame"):
-            cleaner.clean_pandas_dataframe(
-                ["not", "a", "dataframe"], "text", "redact"
-            )
+        with pytest.raises(TypeError, match="df must be a Polars or pandas"):
+            cleaner.clean_dataframe(["not", "a", "dataframe"], "text", "redact")
 
     def test_detect_dataframe_invalid_df_type(self, cleaner):
         """Test error with non-DataFrame input."""
-        with pytest.raises(TypeError, match="df must be a pandas DataFrame"):
-            cleaner.detect_pandas_dataframe({"not": "a dataframe"}, "text")
+        with pytest.raises(TypeError, match="df must be a Polars or pandas"):
+            cleaner.detect_dataframe({"not": "a dataframe"}, "text")
 
 
 class TestPandasSeriesAccessor:
@@ -212,7 +210,7 @@ class TestPandasSeriesAccessor:
         detected = df["text"].pii.detect_pii()
 
         assert pd.isna(cleaned.iloc[1])  # Null should remain null
-        assert detected.iloc[1] == []  # Null should return empty list
+        assert detected.iloc[1] is None  # Null rows give null
 
         assert "test@example.com" not in cleaned.iloc[0]
         assert cleaned.iloc[2] == "Clean text"
@@ -226,8 +224,8 @@ class TestPandasEdgeCases:
         cleaner = Cleaner()
         empty_df = pd.DataFrame({"text": []})
 
-        cleaned = cleaner.clean_pandas_dataframe(empty_df, "text", "redact")
-        detected = cleaner.detect_pandas_dataframe(empty_df, "text")
+        cleaned = cleaner.clean_dataframe(empty_df, "text", "redact")
+        detected = cleaner.detect_dataframe(empty_df, "text")
 
         assert cleaned.shape == (0, 1)
         assert detected.shape[0] == 0  # No rows
@@ -239,10 +237,10 @@ class TestPandasEdgeCases:
         batch_data = ["Email: test@example.com"] * 200 + ["No PII"] * 200
         batch_df = pd.DataFrame({"text": batch_data})
 
-        cleaned = cleaner.clean_pandas_dataframe(
+        cleaned = cleaner.clean_dataframe(
             batch_df, "text", "redact", new_column_name="cleaned"
         )
-        detected = cleaner.detect_pandas_dataframe(batch_df, "text")
+        detected = cleaner.detect_dataframe(batch_df, "text")
 
         assert cleaned.shape == (400, 2)
         assert detected.shape[0] >= 200  # Should detect PII in first 200 rows
@@ -286,10 +284,10 @@ class TestPandasEdgeCases:
             }
         )
 
-        cleaned = email_cleaner.clean_pandas_dataframe(
+        cleaned = email_cleaner.clean_dataframe(
             df, "text", "redact", new_column_name="cleaned"
         )
-        detected = email_cleaner.detect_pandas_dataframe(df, "text")
+        detected = email_cleaner.detect_dataframe(df, "text")
 
         cleaned_texts = cleaned["cleaned"].tolist()
 
@@ -322,7 +320,7 @@ class TestPandasEdgeCases:
             }
         )
 
-        result = custom_cleaner.clean_pandas_dataframe(df, "text", "replace")
+        result = custom_cleaner.clean_dataframe(df, "text", "replace")
         cleaned_texts = result["text"].tolist()
 
         # Row with PII should use custom replacement string

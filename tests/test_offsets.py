@@ -105,7 +105,7 @@ class TestCharacterOffsets:
 
     def test_pandas_detect_dataframe(self):
         df = pd.DataFrame({"text": TEXTS})
-        result = Cleaner().detect_pandas_dataframe(df, "text")
+        result = Cleaner().detect_dataframe(df, "text")
         for text, matches in zip(
             TEXTS, result["text_pii_detected"], strict=True
         ):

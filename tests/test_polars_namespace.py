@@ -316,13 +316,22 @@ class TestPolarsPlugin:
         cleaned = cleaner.clean_dataframe(df, "t", "replace")["t"]
         assert cleaned.to_list() == ["X", None]
         detected = cleaner.detect_dataframe(df, "t")["t_pii_detected"]
-        assert [[m["type"] for m in row] for row in detected] == [["email"], []]
+        assert [m["type"] for m in detected[0]] == ["email"]
+        assert detected[1] is None
 
-    def test_clean_dataframe_casts_non_string_columns(self):
-        df = pl.DataFrame({"n": [1234567890, None]})
-        cleaned = Cleaner().clean_dataframe(df, "n", "redact")["n"]
-        assert cleaned.dtype == pl.String
-        assert cleaned.to_list() == [
-            piicleaner.clean_pii("1234567890", "redact"),
-            None,
-        ]
+    @pytest.mark.parametrize(
+        "series",
+        [
+            pl.Series("n", [1234567890, None]),
+            pl.Series("n", ["a@b.com"], dtype=pl.Categorical),
+        ],
+        ids=["int", "categorical"],
+    )
+    def test_dataframe_methods_reject_non_string_columns(self, series):
+        """Non-string columns raise TypeError naming the column and dtype,
+        rather than being cleaned as their string form (#54)"""
+        df = pl.DataFrame([series])
+        with pytest.raises(TypeError, match=r"column 'n' has dtype"):
+            Cleaner().clean_dataframe(df, "n", "redact")
+        with pytest.raises(TypeError, match=r"column 'n' has dtype"):
+            Cleaner().detect_dataframe(df, "n")

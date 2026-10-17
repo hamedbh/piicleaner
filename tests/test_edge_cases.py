@@ -706,63 +706,43 @@ class TestDataFrameKeywordOnlyArgs:
     `ignore_case`."""
 
     @staticmethod
-    def frames():
-        import pandas as pd
-        import polars as pl
-
+    def frame(library):
         data = {"text": ["Email a@b.com"]}
-        return {
-            "clean_dataframe": pl.DataFrame(data),
-            "detect_dataframe": pl.DataFrame(data),
-            "clean_pandas_dataframe": pd.DataFrame(data),
-            "detect_pandas_dataframe": pd.DataFrame(data),
-        }
+        if library == "polars":
+            import polars as pl
 
-    @pytest.mark.parametrize(
-        "method",
-        [
-            "clean_dataframe",
-            "detect_dataframe",
-            "clean_pandas_dataframe",
-            "detect_pandas_dataframe",
-        ],
-    )
-    def test_positional_optional_args_rejected(self, method):
-        df = self.frames()[method]
-        func = getattr(Cleaner(), method)
-        args = (
+            return pl.DataFrame(data)
+        import pandas as pd
+
+        return pd.DataFrame(data)
+
+    CASES = [
+        (method, library)
+        for method in ["clean_dataframe", "detect_dataframe"]
+        for library in ["polars", "pandas"]
+    ]
+
+    @staticmethod
+    def args(method, df):
+        return (
             (df, "text", "redact")
             if method.startswith("clean")
-            else (
-                df,
-                "text",
-            )
+            else (df, "text")
         )
+
+    @pytest.mark.parametrize(("method", "library"), CASES)
+    def test_positional_optional_args_rejected(self, method, library):
+        func = getattr(Cleaner(), method)
+        args = self.args(method, self.frame(library))
         with pytest.raises(TypeError, match="positional argument"):
             func(*args, "new_col")
         with pytest.raises(TypeError, match="positional argument"):
             func(*args, True, "new_col")
 
-    @pytest.mark.parametrize(
-        "method",
-        [
-            "clean_dataframe",
-            "detect_dataframe",
-            "clean_pandas_dataframe",
-            "detect_pandas_dataframe",
-        ],
-    )
-    def test_keyword_args_accepted(self, method):
-        df = self.frames()[method]
+    @pytest.mark.parametrize(("method", "library"), CASES)
+    def test_keyword_args_accepted(self, method, library):
         func = getattr(Cleaner(), method)
-        args = (
-            (df, "text", "redact")
-            if method.startswith("clean")
-            else (
-                df,
-                "text",
-            )
-        )
+        args = self.args(method, self.frame(library))
         result = func(*args, ignore_case=False, new_column_name="new_col")
         assert "new_col" in result.columns
 
