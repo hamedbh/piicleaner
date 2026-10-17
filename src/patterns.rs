@@ -46,6 +46,26 @@ impl PatternRegistry {
                 ],
             ),
             (
+                "international-telephone",
+                vec![
+                    // A "+" or "00" prefix, a 1-3 digit country code, then
+                    // 6-14 digits with an optional space, dot or hyphen
+                    // between any two, and brackets between digits, as in
+                    // "+1 (415) 555-0132" or "+44 (0)20 7946 0958". A ")" is
+                    // only taken before another digit, so the bracket in
+                    // "(+1 415 555 0132)" is left alone. Looser
+                    // than E.164's 15-digit limit, so no number is missed.
+                    // The country code can't start with 0, which keeps out
+                    // UTC offsets such as "+01:00". Numbers without a prefix
+                    // can't be told apart from UK numbers or other digit
+                    // runs, so they're left to `telephone` and `case-id`.
+                    // A space is allowed after the prefix ("00 33 1 ..."),
+                    // which also matches "00 2024-01-15" in "10:00
+                    // 2024-01-15": over-redaction is preferred to a miss
+                    r"(?:\+|\b00)\s?[1-9][0-9]{0,2}(?:\)?[\s.\-]?\(?[0-9]){6,14}(?:\s?(?:x|ext\.?|\#)\s?[0-9]{1,5})?",
+                ],
+            ),
+            (
                 "ip_address",
                 vec![
                     r"\b(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\b",

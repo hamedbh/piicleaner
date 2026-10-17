@@ -10,6 +10,7 @@ fn test_pattern_registry_creation() {
     assert!(cleaners.contains(&"nino"));
     assert!(cleaners.contains(&"postcode"));
     assert!(cleaners.contains(&"telephone"));
+    assert!(cleaners.contains(&"international-telephone"));
     assert!(cleaners.contains(&"cash-amount"));
     assert!(cleaners.contains(&"address"));
     assert!(cleaners.contains(&"case-id"));
@@ -303,6 +304,89 @@ fn test_telephone_pattern_matching() {
             phone
         );
     }
+}
+
+#[test]
+fn test_international_telephone_matches_whole() {
+    let patterns = get_patterns_by_name(&["international-telephone"]);
+    let re = regex::RegexBuilder::new(patterns[0])
+        .case_insensitive(true)
+        .build()
+        .unwrap();
+
+    let test_cases = vec![
+        ("x +1 415 555 0132 y", "+1 415 555 0132"),
+        ("x +33 1 23 45 67 89 y", "+33 1 23 45 67 89"),
+        ("x +49 30 1234567 y", "+49 30 1234567"),
+        ("x +353 1 234 5678 y", "+353 1 234 5678"),
+        ("x +61-2-9876-5432 y", "+61-2-9876-5432"),
+        ("x +81.3.1234.5678 y", "+81.3.1234.5678"),
+        ("x +14155550132 y", "+14155550132"),
+        ("x 0014155550132 y", "0014155550132"),
+        ("x 00 33 1 23 45 67 89 y", "00 33 1 23 45 67 89"),
+        ("x +1 (415) 555-0132 y", "+1 (415) 555-0132"),
+        ("x (+44) 20 7946 0958 y", "+44) 20 7946 0958"),
+        ("x +44 (0)20 7946 0958 y", "+44 (0)20 7946 0958"),
+        ("x + 1 415 555 0132 y", "+ 1 415 555 0132"),
+        // Extensions
+        ("x +1 415 555 0132 x123 y", "+1 415 555 0132 x123"),
+        ("x +1 415 555 0132 ext. 123 y", "+1 415 555 0132 ext. 123"),
+        ("x +1 415 555 0132 Ext 9 y", "+1 415 555 0132 Ext 9"),
+        // Punctuation around it
+        ("call (+1 415 555 0132), now", "+1 415 555 0132"),
+        ("tel:+14155550132.", "+14155550132"),
+    ];
+
+    for (text, expected) in test_cases {
+        let found = re.find(text).map(|m| m.as_str());
+        assert_eq!(
+            found,
+            Some(expected),
+            "International telephone match in '{}' incorrect",
+            text
+        );
+    }
+}
+
+#[test]
+fn test_international_telephone_non_matches() {
+    let patterns = get_patterns_by_name(&["international-telephone"]);
+    let re = regex::RegexBuilder::new(patterns[0])
+        .case_insensitive(true)
+        .build()
+        .unwrap();
+
+    for text in [
+        // UTC offsets and timestamps
+        "2024-01-15T10:00:00+01:00",
+        "at 10:00 UTC+10 on 2024-01-15",
+        "+05:30",
+        // Too few digits after the country code
+        "+1 415 55",
+        "score +44 points",
+        "+1000 users",
+        // No prefix
+        "415 555 0132",
+        // "00" inside a longer number
+        "1000 123 4567",
+    ] {
+        assert_eq!(
+            re.find(text),
+            None,
+            "International telephone matched in '{}'",
+            text
+        );
+    }
+}
+
+#[test]
+fn test_international_telephone_known_false_positive() {
+    // A time followed by a date looks like a "00" number. Accepted, since
+    // over-redaction is preferred to missing "00 33 1 23 45 67 89"
+    let patterns = get_patterns_by_name(&["international-telephone"]);
+    let re = regex::Regex::new(patterns[0]).unwrap();
+    let found = re.find("at 10:00 2024-01-15").map(|m| m.as_str());
+    assert_eq!(found, Some("00 2024-01-15"));
 }
 
 #[test]
