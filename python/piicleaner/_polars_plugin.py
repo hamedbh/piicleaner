@@ -7,6 +7,8 @@ if TYPE_CHECKING:
     import polars as pl
     from polars import Expr
 
+    from piicleaner._types import Cleaning
+
 try:
     import polars as pl
     from polars import Expr
@@ -27,7 +29,7 @@ _PLUGIN_PATH = Path(_internal.__file__)
 
 def _clean_pii_expr(
     expr: Expr,
-    cleaning: str,
+    cleaning: Cleaning,
     cleaners: list[str],
     ignore_case: bool,
     replace_string: str | None,
@@ -35,7 +37,8 @@ def _clean_pii_expr(
     """Expression that cleans PII from a string column in Rust.
 
     Nulls stay null. Cleaner names and the cleaning method are validated
-    here, when the expression is built, not when it runs.
+    here, when the expression is built. A non-string column fails when the
+    query is planned, with a Polars error.
     """
     piicleaner.clean_pii_with_cleaners_batch(
         [], cleaners, cleaning, ignore_case, replace_string
@@ -61,7 +64,8 @@ def _detect_pii_expr(
 
     Returns a list of ``{start, end, text, type}`` structs per row, with
     ``start``/``end`` as Int64 character offsets. Null rows give null.
-    Cleaner names are validated here, when the expression is built.
+    Cleaner names are validated here, when the expression is built. A
+    non-string column fails when the query is planned, with a Polars error.
     """
     piicleaner.detect_pii_with_cleaners_batch([], cleaners, ignore_case)
     return register_plugin_function(
@@ -92,7 +96,7 @@ if POLARS_AVAILABLE:
 
         def clean_pii(
             self,
-            cleaning: str,
+            cleaning: Cleaning,
             cleaners: str | list[str] = "all",
             ignore_case: bool = True,
             replace_string: str | None = None,

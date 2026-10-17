@@ -116,12 +116,12 @@ class TestPolarsDataFrameMethods:
 
     def test_clean_dataframe_invalid_df_type(self, cleaner):
         """Test error with non-DataFrame input."""
-        with pytest.raises(TypeError, match="df must be a polars DataFrame"):
+        with pytest.raises(TypeError, match="df must be a Polars or pandas"):
             cleaner.clean_dataframe(["not", "a", "dataframe"], "text", "redact")
 
     def test_detect_dataframe_invalid_df_type(self, cleaner):
         """Test error with non-DataFrame input."""
-        with pytest.raises(TypeError, match="df must be a polars DataFrame"):
+        with pytest.raises(TypeError, match="df must be a Polars or pandas"):
             cleaner.detect_dataframe({"not": "a dataframe"}, "text")
 
 
@@ -354,5 +354,5 @@ class TestPolarsEdgeCases:
         detection_results = detected["text_pii_detected"].to_list()
 
         assert len(detection_results[0]) > 0  # Should detect email
-        assert detection_results[1] == []  # Null should give empty list
+        assert detection_results[1] is None  # Null rows give null
         assert detection_results[2] == []  # Clean text should give empty list

@@ -1,5 +1,7 @@
 """Type stubs for the Rust _internal module"""
 
+from piicleaner._types import Cleaning
+
 def detect_pii(
     text: str, ignore_case: bool = True
 ) -> list[tuple[int, int, str, str]]:
@@ -8,7 +10,7 @@ def detect_pii(
 
 def clean_pii(
     text: str,
-    cleaning: str,
+    cleaning: Cleaning,
     ignore_case: bool = True,
     replace_string: str | None = None,
 ) -> str:
@@ -24,7 +26,7 @@ def detect_pii_with_cleaners(
 def clean_pii_with_cleaners(
     text: str,
     cleaners: list[str],
-    cleaning: str,
+    cleaning: Cleaning,
     ignore_case: bool = True,
     replace_string: str | None = None,
 ) -> str:
@@ -43,7 +45,7 @@ def detect_pii_batch(
 
 def clean_pii_batch(
     texts: list[str],
-    cleaning: str,
+    cleaning: Cleaning,
     ignore_case: bool = True,
     replace_string: str | None = None,
 ) -> list[str]:
@@ -59,7 +61,7 @@ def detect_pii_with_cleaners_batch(
 def clean_pii_with_cleaners_batch(
     texts: list[str],
     cleaners: list[str],
-    cleaning: str,
+    cleaning: Cleaning,
     ignore_case: bool = True,
     replace_string: str | None = None,
 ) -> list[str]:

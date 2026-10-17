@@ -40,12 +40,38 @@ fn cleaner_refs(cleaners: &[String]) -> PolarsResult<Vec<&str>> {
     Ok(refs)
 }
 
-/// The values of a string column, nulls as `None`
-fn str_values(inputs: &[Series]) -> PolarsResult<Vec<Option<&str>>> {
-    Ok(inputs[0].str()?.iter().collect())
+/// Only String columns, or all-null columns, can be cleaned. Polars checks
+/// this while planning the query, before any data reaches the plugin: some
+/// dtypes, such as Categorical, can't be passed safely between Python Polars
+/// and this crate's version of Polars.
+fn check_input(field: &Field) -> PolarsResult<()> {
+    match field.dtype() {
+        DataType::String | DataType::Null => Ok(()),
+        dtype => Err(polars_err!(
+            SchemaMismatch: "piicleaner only works on strings, but column `{}` has dtype `{}`. \
+             If it holds text, cast it with `.cast(pl.String)` first",
+            field.name(),
+            dtype
+        )),
+    }
 }
 
-#[polars_expr(output_type=String)]
+/// The values of a string column, nulls as `None`. An all-null column has
+/// dtype Null rather than String.
+fn str_values(inputs: &[Series]) -> PolarsResult<Vec<Option<&str>>> {
+    let series = &inputs[0];
+    if series.dtype() == &DataType::Null {
+        return Ok(vec![None; series.len()]);
+    }
+    Ok(series.str()?.iter().collect())
+}
+
+fn clean_pii_output(input_fields: &[Field]) -> PolarsResult<Field> {
+    check_input(&input_fields[0])?;
+    Ok(Field::new(input_fields[0].name().clone(), DataType::String))
+}
+
+#[polars_expr(output_type_func=clean_pii_output)]
 fn clean_pii(inputs: &[Series], kwargs: CleanKwargs) -> PolarsResult<Series> {
     let cleaning =
         Cleaning::parse(&kwargs.cleaning).map_err(|e| polars_err!(InvalidOperation: "{}", e))?;
@@ -84,6 +110,7 @@ fn match_dtype() -> DataType {
 }
 
 fn detect_pii_output(input_fields: &[Field]) -> PolarsResult<Field> {
+    check_input(&input_fields[0])?;
     Ok(Field::new(
         input_fields[0].name().clone(),
         DataType::List(Box::new(match_dtype())),
