@@ -22,8 +22,8 @@ class Cleaner(PolarsCleanerMixin, PandasCleanerMixin):
     Args:
         cleaners (str | list[str]): The cleaners to use. Default "all" uses all
             available cleaners. Available cleaners include: "email", "postcode",
-            "telephone", "nino", "address", "cash-amount", "case-id",
-            "tag", "ip_address". Defaults to "all".
+            "telephone", "international-telephone", "nino", "address",
+            "cash-amount", "case-id", "tag", "ip_address". Defaults to "all".
         replace_string (str | None): Custom replacement string for "replace"
             cleaning method. If None, uses default "[PII detected, text
             redacted]". Defaults to None.

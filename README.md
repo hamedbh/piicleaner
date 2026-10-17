@@ -174,7 +174,7 @@ print(replaced)  # "[CONFIDENTIAL]"
 
 # See available cleaners
 print(Cleaner.get_available_cleaners())
-# ['address', 'case-id', 'cash-amount', 'email', 'ip_address', 'nino', 'postcode', 'tag', 'telephone']
+# ['address', 'case-id', 'cash-amount', 'email', 'international-telephone', 'ip_address', 'nino', 'postcode', 'tag', 'telephone']
 ```
 
 ## Supported PII Types
@@ -183,6 +183,7 @@ print(Cleaner.get_available_cleaners())
 |------|-------------|---------|
 | `email` | Email addresses | `john@example.com` |
 | `telephone` | UK phone numbers | `+44 20 7946 0958` |
+| `international-telephone` | Phone numbers with a `+` or `00` international prefix | `+1 415 555 0132`, `+33 1 23 45 67 89` |
 | `postcode` | UK postcodes, with any whitespace (or none) between the two halves | `SW1A 1AA`, `SW1A1AA` |
 | `nino` | National Insurance numbers, with spaces, dashes or dots between groups | `AB123456C`, `AB-12-34-56-C`, `AB 123 456 C` |
 | `address` | Street addresses | `123 High Street` |

@@ -217,21 +217,22 @@ Available PII Types
 
    # See available cleaners
    print(Cleaner.get_available_cleaners())
-   # ['address', 'case-id', 'cash-amount', 'email', 'ip_address', 'nino', 'postcode', 'tag', 'telephone']
+   # ['address', 'case-id', 'cash-amount', 'email', 'international-telephone', 'ip_address', 'nino', 'postcode', 'tag', 'telephone']
 
-========================  =============================================  ===================
-Type                      Description                                    Example
-========================  =============================================  ===================
-``email``                 Email addresses                                john@example.com
-``telephone``             UK phone numbers                               +44 20 7946 0958  
-``postcode``              UK postcodes                                   SW1A 1AA, SW1A1AA
-``nino``                  National Insurance numbers                     AB123456C, AB-12-34-56-C, AB 123 456 C
-``address``               Street addresses                               123 High Street
-``cash-amount``           Currency amounts                               £1,500, $2000
-``case-id``               Case/reference IDs                             UUIDs, reference numbers
-``tag``                   HTML/XML tags                                  <script>, <div>
-``ip_address``            IPv4 and IPv6 addresses                        192.168.1.1, 2001:db8::1, fe80::1%eth0
-========================  =============================================  ===================
+============================  =============================================  ===================
+Type                          Description                                    Example
+============================  =============================================  ===================
+``email``                     Email addresses                                john@example.com
+``telephone``                 UK phone numbers                               +44 20 7946 0958  
+``international-telephone``   Phone numbers with a + or 00 prefix            +1 415 555 0132, +33 1 23 45 67 89
+``postcode``                  UK postcodes                                   SW1A 1AA, SW1A1AA
+``nino``                      National Insurance numbers                     AB123456C, AB-12-34-56-C, AB 123 456 C
+``address``                   Street addresses                               123 High Street
+``cash-amount``               Currency amounts                               £1,500, $2000
+``case-id``                   Case/reference IDs                             UUIDs, reference numbers
+``tag``                       HTML/XML tags                                  <script>, <div>
+``ip_address``                IPv4 and IPv6 addresses                        192.168.1.1, 2001:db8::1, fe80::1%eth0
+============================  =============================================  ===================
 
 Cleaning Methods
 ----------------
