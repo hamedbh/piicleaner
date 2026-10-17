@@ -200,8 +200,8 @@ Pandas Examples
 
    cleaner = Cleaner()
 
-   # Method 1: Using cleaner methods
-   cleaned_df = cleaner.clean_pandas_dataframe(df, "customer_info", "redact", new_column_name="cleaned_info")
+   # Method 1: Using cleaner methods (the same ones as for Polars)
+   cleaned_df = cleaner.clean_dataframe(df, "customer_info", "redact", new_column_name="cleaned_info")
    print("Cleaned DataFrame:")
    print(cleaned_df)
 
@@ -212,7 +212,7 @@ Pandas Examples
    print(df[["customer_info", "redacted", "pii_detected"]])
 
    # Method 3: Detection only
-   detection_df = cleaner.detect_pandas_dataframe(df, "customer_info")
+   detection_df = cleaner.detect_dataframe(df, "customer_info")
    print("\nDetection results:")
    print(detection_df)
 
@@ -249,8 +249,9 @@ Handling Missing Values
 
    cleaner = Cleaner()
 
-   # Both libraries handle nulls properly
-   pandas_cleaned = cleaner.clean_pandas_dataframe(df_pandas, "text", "redact")
+   # Null values stay null in both libraries, when cleaning and when
+   # detecting
+   pandas_cleaned = cleaner.clean_dataframe(df_pandas, "text", "redact")
    polars_cleaned = cleaner.clean_dataframe(df_polars, "text", "redact")
 
    print("Pandas result:")

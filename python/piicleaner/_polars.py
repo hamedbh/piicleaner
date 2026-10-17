@@ -7,123 +7,68 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     import polars as pl
 
+    from piicleaner._types import Cleaning
+
 try:
     import polars as pl
 
     from piicleaner._polars_plugin import _clean_pii_expr, _detect_pii_expr
 
     POLARS_AVAILABLE = True
-
-    _DETECTION_DTYPE = pl.List(
-        pl.Struct(
-            [
-                pl.Field("start", pl.Int64),
-                pl.Field("end", pl.Int64),
-                pl.Field("text", pl.String),
-                pl.Field("type", pl.String),
-            ]
-        )
-    )
 except ImportError:
     POLARS_AVAILABLE = False
+
+
+def _check_column(df: pl.DataFrame, column_name: str) -> None:
+    """The column must exist and hold strings. An all-null column has dtype
+    Null, and is accepted."""
+    if column_name not in df.columns:
+        raise ValueError(f"Column '{column_name}' not found in DataFrame")
+    dtype = df.schema[column_name]
+    if dtype not in (pl.String, pl.Null):
+        raise TypeError(
+            f"piicleaner only works on strings, but column '{column_name}' "
+            f"has dtype {dtype}. If it holds text, cast it with "
+            ".cast(pl.String) first"
+        )
 
 
 class PolarsCleanerMixin:
     """Mixin class to add Polars functionality to Cleaner"""
 
-    def clean_dataframe(
+    def _clean_polars_dataframe(
         self,
         df: pl.DataFrame,
         column_name: str,
-        cleaning: str,
-        *,
-        ignore_case: bool = True,
-        new_column_name: str | None = None,
-    ):
-        """Clean PII in a Polars DataFrame column.
-
-        Args:
-            df (pl.DataFrame): Polars DataFrame.
-            column_name (str): Name of the column to clean.
-            cleaning (str): Cleaning method ("redact" or "replace").
-            ignore_case (bool): Should we ignore case when detecting PII?
-                Defaults to True.
-            new_column_name (str | None): Name for the new cleaned column. If
-                None, overwrites original. Defaults to None.
-
-        Returns:
-            pl.DataFrame: DataFrame with cleaned column.
-        """
-        if not POLARS_AVAILABLE:
-            raise ImportError("polars is required for DataFrame operations")
-
-        if not isinstance(df, pl.DataFrame):
-            raise TypeError("df must be a polars DataFrame")
-
-        if column_name not in df.columns:
-            raise ValueError(f"Column '{column_name}' not found in DataFrame")
-
-        # Overwrite the original column by default
-        if new_column_name is None:
-            new_column_name = column_name
-
-        # Non-string columns are cleaned as their string form
-        result_df = df.with_columns(
+        cleaning: Cleaning,
+        ignore_case: bool,
+        new_column_name: str | None,
+    ) -> pl.DataFrame:
+        _check_column(df, column_name)
+        return df.with_columns(
             _clean_pii_expr(
-                pl.col(column_name).cast(pl.String),
+                pl.col(column_name),
                 cleaning,
                 self.cleaners,
                 ignore_case,
                 self.replace_string,
-            ).alias(new_column_name)
+            ).alias(column_name if new_column_name is None else new_column_name)
         )
 
-        return result_df
-
-    def detect_dataframe(
+    def _detect_polars_dataframe(
         self,
         df: pl.DataFrame,
         column_name: str,
-        *,
-        ignore_case: bool = True,
-        new_column_name: str | None = None,
-    ):
-        """Detect PII in a Polars DataFrame column.
-
-        Args:
-            df (pl.DataFrame): Polars DataFrame.
-            column_name (str): Name of the column to analyse.
-            ignore_case (bool): Should we ignore case when detecting PII?
-                Defaults to True.
-            new_column_name (str | None): Name for the new detection column. If
-                None, uses "{column_name}_pii_detected". Defaults to None.
-
-        Returns:
-            pl.DataFrame: DataFrame with detection results added as a
-                list column.
-        """
-        if not POLARS_AVAILABLE:
-            raise ImportError("polars is required for DataFrame operations")
-
-        if not isinstance(df, pl.DataFrame):
-            raise TypeError("df must be a polars DataFrame")
-
-        if column_name not in df.columns:
-            raise ValueError(f"Column '{column_name}' not found in DataFrame")
-
-        # Set default column name
-        if new_column_name is None:
-            new_column_name = f"{column_name}_pii_detected"
-
-        # Null rows give an empty list of matches, not null
-        detected = _detect_pii_expr(
-            pl.col(column_name).cast(pl.String), self.cleaners, ignore_case
+        ignore_case: bool,
+        new_column_name: str | None,
+    ) -> pl.DataFrame:
+        _check_column(df, column_name)
+        return df.with_columns(
+            _detect_pii_expr(
+                pl.col(column_name), self.cleaners, ignore_case
+            ).alias(
+                f"{column_name}_pii_detected"
+                if new_column_name is None
+                else new_column_name
+            )
         )
-        result_df = df.with_columns(
-            pl.when(pl.col(column_name).is_null())
-            .then(pl.lit([], dtype=_DETECTION_DTYPE))
-            .otherwise(detected)
-            .alias(new_column_name)
-        )
-
-        return result_df

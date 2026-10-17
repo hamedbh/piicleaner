@@ -9,7 +9,17 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 polars-arrow = { version = "0.55.1", default-features = false }
-polars-core = { version = "0.55.1", default-features = false, features = ["dtype-struct"] }
+# Every dtype Python Polars can pass in must be readable, so a non-string
+# column gets a clear error instead of a panic
+polars-core = { version = "0.55.1", default-features = false, features = [
+    "dtype-array",
+    "dtype-categorical",
+    "dtype-decimal",
+    "dtype-f16",
+    "dtype-i128",
+    "dtype-struct",
+    "dtype-u128",
+] }
 polars-error = "0.55.1"
 polars-ffi = "0.55.1"
 pyo3 = { version = "0.29.3", features = ["extension-module", "abi3-py311"] }

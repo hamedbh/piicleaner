@@ -141,12 +141,12 @@ df = pd.DataFrame({
 
 cleaner = Cleaner()
 
-# Clean PII in DataFrame
-cleaned_df = cleaner.clean_pandas_dataframe(df, "text", "redact", new_column_name="cleaned_text")
+# The same DataFrame methods as for Polars
+cleaned_df = cleaner.clean_dataframe(df, "text", "redact", new_column_name="cleaned_text")
 print(cleaned_df)
 
-# Detect PII in DataFrame  
-pii_df = cleaner.detect_pandas_dataframe(df, "text")
+# Detect PII in DataFrame
+pii_df = cleaner.detect_dataframe(df, "text")
 print(pii_df)
 
 # Using Series accessor API
@@ -202,37 +202,39 @@ By default, PIICleaner performs **case-insensitive** matching to catch PII regar
 - `ignore_case=True` (default): Detects `ab123456c`, `AB123456C`, and `Ab123456C` as valid NINOs
 - `ignore_case=False`: Only detects patterns matching the exact case defined in regex patterns
 
-This ensures maximum PII detection while allowing precise control when needed.
+This ensures maximum PII detection while allowing precise control when needed. Set it once for a `Cleaner` with `Cleaner(ignore_case=False)`, or pass `ignore_case` to a single call.
 
 ## API Reference
 
 ### Cleaner Class
 
 ```python
-Cleaner(cleaners="all", replace_string=None)
+Cleaner(cleaners="all", replace_string=None, ignore_case=True)
 ```
 
 **Parameters:**
 - `cleaners` (str | list[str]): PII types to detect. Use `"all"` for all types or specify a list like `["email", "telephone"]`
 - `replace_string` (str | None): Custom replacement string for "replace" cleaning method
+- `ignore_case` (bool): Default for every method's `ignore_case`
 
-**Methods:**
-- `detect_pii(text, ignore_case=True)`: Detect PII and return match locations with type information
-- `detect_pii_list(texts, ignore_case=True)`: Detect PII in list of strings
-- `clean_pii(text, cleaning, ignore_case=True)`: Clean PII from text
-- `clean_pii_list(texts, cleaning, ignore_case=True)`: Clean list of strings
-- `clean_dataframe(df, column, cleaning, *, ignore_case=True, new_column_name=None)`: Clean Polars DataFrame
-- `detect_dataframe(df, column, *, ignore_case=True, new_column_name=None)`: Detect PII in Polars DataFrame
-- `clean_pandas_dataframe(df, column, cleaning, *, ignore_case=True, new_column_name=None)`: Clean Pandas DataFrame
-- `detect_pandas_dataframe(df, column, *, ignore_case=True, new_column_name=None)`: Detect PII in Pandas DataFrame
+**Methods** (`cleaning` is `"redact"` or `"replace"`; `ignore_case=None` means the `Cleaner`'s setting):
+- `detect_pii(text, ignore_case=None)`: Detect PII and return match locations with type information
+- `detect_pii_list(texts, ignore_case=None)`: Detect PII in list of strings
+- `clean_pii(text, cleaning, ignore_case=None)`: Clean PII from text
+- `clean_pii_list(texts, cleaning, ignore_case=None)`: Clean list of strings
+- `clean_dataframe(df, column, cleaning, *, ignore_case=None, new_column_name=None)`: Clean a column of a Polars or pandas DataFrame
+- `detect_dataframe(df, column, *, ignore_case=None, new_column_name=None)`: Detect PII in a column of a Polars or pandas DataFrame
+- `get_available_cleaners()`: Get list of available PII types
 
 In the DataFrame methods, `ignore_case` and `new_column_name` are keyword-only, e.g. `clean_dataframe(df, "text", "redact", new_column_name="cleaned_text")`.
-- `get_available_cleaners()`: Get list of available PII types
+
+`clean_pandas_dataframe()` and `detect_pandas_dataframe()` are deprecated and will be removed in 0.8.0. Use `clean_dataframe()` and `detect_dataframe()`, which take pandas DataFrames too.
 
 **DataFrame Integration Features:**
 - **Polars**: `.pii.clean_pii()` and `.pii.detect_pii()` expressions, which run as a native Polars plugin (no per-row Python) and work in lazy queries. `clean_dataframe()`/`detect_dataframe()` use the same plugin
 - **Pandas**: Series accessor `.pii.clean_pii()` and `.pii.detect_pii()` methods
-- **Null Handling**: Both integrations properly handle null/missing values
+- **Nulls**: null values stay null. Cleaning returns them unchanged, and detection gives null rather than an empty list
+- **Strings only**: a column of non-string values raises an error instead of being converted. `clean_dataframe()`/`detect_dataframe()` and the pandas `.pii` accessor raise `TypeError`; the Polars `.pii` expressions raise a Polars error when the query runs. If the column holds text, cast it to strings first
 - **Vectorized Processing**: Efficient batch processing for large datasets
 
 ## Performance
