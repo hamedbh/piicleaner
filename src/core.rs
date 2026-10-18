@@ -463,6 +463,7 @@ mod tests {
             ("123 high street", "address"), // Use lowercase for address pattern
             ("£1,500", "cash-amount"),
             ("192.168.1.1", "ip_address"),
+            ("+1 415 555 0132", "international-telephone"),
         ];
 
         for (pii_text, expected_type) in test_cases {
@@ -683,6 +684,38 @@ mod tests {
     }
 
     #[test]
+    fn test_international_telephone_redacted_whole() {
+        for (text, expected) in [
+            (
+                "x +1 415 555 0132 y",
+                "x [international-telephone-redacted] y",
+            ),
+            (
+                "x +33 1 23 45 67 89 y",
+                "x [international-telephone-redacted] y",
+            ),
+            (
+                "x +1 (415) 555-0132 ext. 12 y",
+                "x [international-telephone-redacted] y",
+            ),
+            // UK numbers match both cleaners; `telephone` comes first, so the
+            // label is unchanged. ("x", not "call": with ignore_case, `nino`
+            // matches "ll 0044 20")
+            ("x +44 20 7946 0958 y", "x [telephone-redacted] y"),
+            ("x 0044 20 7946 0958 y", "x [telephone-redacted] y"),
+        ] {
+            for ignore_case in [false, true] {
+                assert_eq!(
+                    clean_pii_core(text, Cleaning::Redact, ignore_case, None),
+                    expected,
+                    "input: {}",
+                    text
+                );
+            }
+        }
+    }
+
+    #[test]
     fn test_available_cleaners_in_priority_order() {
         assert_eq!(
             patterns::get_registry().get_available_cleaners(),
@@ -691,6 +724,7 @@ mod tests {
                 "nino",
                 "postcode",
                 "telephone",
+                "international-telephone",
                 "ip_address",
                 "address",
                 "tag",

@@ -98,8 +98,15 @@ class TestPIIDetection:
         text = "Call me at +44 20 7946 0958"
         matches = cleaner.detect_pii(text)
 
-        assert len(matches) == 1
-        assert matches[0]["text"] == "+44 20 7946 0958"
+        # A UK number in international form matches both telephone cleaners,
+        # in priority order; redaction uses the first label
+        assert [(m["text"], m["type"]) for m in matches] == [
+            ("+44 20 7946 0958", "telephone"),
+            ("+44 20 7946 0958", "international-telephone"),
+        ]
+        assert cleaner.clean_pii(text, "redact") == (
+            "Call me at [telephone-redacted]"
+        )
 
     def test_detect_postcode(self, cleaner):
         """Test postcode detection."""
