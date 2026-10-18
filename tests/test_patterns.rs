@@ -513,3 +513,17 @@ fn test_ipv6_does_not_match_times_or_code() {
         assert_eq!(re.find(text), None, "IPv6 matched in '{}'", text);
     }
 }
+
+#[test]
+fn test_word_boundaries_are_ascii() {
+    // A Unicode \b makes text with any non-ASCII character 300-450x slower to
+    // scan, and stops matches next to non-ASCII letters
+    for pattern in get_all_patterns() {
+        let unicode_boundaries = pattern.replace(r"(?-u:\b)", "").replace(r"(?-u:\B)", "");
+        assert!(
+            !unicode_boundaries.contains(r"\b") && !unicode_boundaries.contains(r"\B"),
+            "use (?-u:\\b) instead of \\b in: {}",
+            pattern
+        );
+    }
+}

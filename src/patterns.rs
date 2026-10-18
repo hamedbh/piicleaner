@@ -9,6 +9,12 @@ use std::sync::LazyLock;
 /// broad catch-alls. The order is fixed so that detection and redaction are
 /// deterministic, and it decides which label wins when matches from several
 /// cleaners overlap.
+///
+/// Word boundaries are ASCII-only, `(?-u:\b)`, never a plain `\b`. A Unicode
+/// boundary makes the regex engine fall back to a slow search on any text
+/// with a non-ASCII character, 300-450x slower for the `RegexSet`. It would
+/// also stop matches next to non-ASCII letters, as in Chinese and Japanese
+/// text, which has no spaces ("邮箱john@example.com谢谢").
 pub struct PatternRegistry {
     patterns: Vec<(&'static str, Vec<&'static str>)>,
 }
@@ -20,8 +26,8 @@ impl PatternRegistry {
             (
                 "email",
                 vec![
-                    r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b",
-                    r"\b[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*\b",
+                    r"(?-u:\b)[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}(?-u:\b)",
+                    r"(?-u:\b)[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*(?-u:\b)",
                 ],
             ),
             (
@@ -33,16 +39,19 @@ impl PatternRegistry {
                     // (e.g. "ca[ll 07700 9]00123"). The 3-3 form must end at a
                     // word boundary or suffix letter, so "020 794" in
                     // "020 7946 0958" isn't matched.
-                    r"[A-CEGHJ-PR-TW-Z][\s\-.]{0,2}[A-CEGHJ-NPR-TW-Z][\s\-.]{0,2}(?:[0-9]{2}[\s\-.]{0,2}[0-9]{2}[\s\-.]{0,2}[0-9]{2}|[0-9]{3}[\s\-.]{0,2}[0-9]{3}(?:\b|[A-D]))(?:[\s\-.]{1,2}[A-D]\b|[A-D])?",
+                    r"[A-CEGHJ-PR-TW-Z][\s\-.]{0,2}[A-CEGHJ-NPR-TW-Z][\s\-.]{0,2}(?:[0-9]{2}[\s\-.]{0,2}[0-9]{2}[\s\-.]{0,2}[0-9]{2}|[0-9]{3}[\s\-.]{0,2}[0-9]{3}(?:(?-u:\b)|[A-D]))(?:[\s\-.]{1,2}[A-D](?-u:\b)|[A-D])?",
                 ],
             ),
             // Any whitespace between the outward and inward codes, including double
             // spaces, tabs and line breaks
-            ("postcode", vec![r"\b[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}\b"]),
+            (
+                "postcode",
+                vec![r"(?-u:\b)[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}(?-u:\b)"],
+            ),
             (
                 "telephone",
                 vec![
-                    r"(?:(?:\(?(?:0(?:0|11)\)?[\s-]?\(?|\+)44\)?[\s-]?(?:\(?0\)?[\s-]?)?)|(?:\(?0))(?:(?:\d{5,6}\)?[\s-]?\d{4,6})|(?:\d{4}\)?[\s-]?(?:\d{5,6}|\d{3,4}[\s-]?\d{3,4}))|(?:\d{3,4}\)?[\s-]?\d{3,4}[\s-]?\d{3,4})|(?:\d{2}\)?[\s-]?\d{4}[\s-]?\d{4}))(?:[\s-]?(?:x|ext\.?|\#)\d{1,4})?\b",
+                    r"(?:(?:\(?(?:0(?:0|11)\)?[\s-]?\(?|\+)44\)?[\s-]?(?:\(?0\)?[\s-]?)?)|(?:\(?0))(?:(?:\d{5,6}\)?[\s-]?\d{4,6})|(?:\d{4}\)?[\s-]?(?:\d{5,6}|\d{3,4}[\s-]?\d{3,4}))|(?:\d{3,4}\)?[\s-]?\d{3,4}[\s-]?\d{3,4})|(?:\d{2}\)?[\s-]?\d{4}[\s-]?\d{4}))(?:[\s-]?(?:x|ext\.?|\#)\d{1,4})?(?-u:\b)",
                 ],
             ),
             (
@@ -62,13 +71,13 @@ impl PatternRegistry {
                     // A space is allowed after the prefix ("00 33 1 ..."),
                     // which also matches "00 2024-01-15" in "10:00
                     // 2024-01-15": over-redaction is preferred to a miss
-                    r"(?:\+|\b00)\s?[1-9][0-9]{0,2}(?:\)?[\s.\-]?\(?[0-9]){6,14}(?:\s?(?:x|ext\.?|\#)\s?[0-9]{1,5})?",
+                    r"(?:\+|(?-u:\b)00)\s?[1-9][0-9]{0,2}(?:\)?[\s.\-]?\(?[0-9]){6,14}(?:\s?(?:x|ext\.?|\#)\s?[0-9]{1,5})?",
                 ],
             ),
             (
                 "ip_address",
                 vec![
-                    r"\b(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\b",
+                    r"(?-u:\b)(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)(?-u:\b)",
                     // IPv6: the full 8-group form, the "::" compressed forms and
                     // forms ending in an embedded IPv4 address, with an optional
                     // zone ID. Looser than the RFC (it doesn't count the groups

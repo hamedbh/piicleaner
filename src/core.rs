@@ -684,6 +684,33 @@ mod tests {
     }
 
     #[test]
+    fn test_pii_next_to_non_ascii_letters_redacted() {
+        // Chinese and Japanese text has no spaces, so PII sits directly
+        // against letters. Word boundaries are ASCII-only, so those letters
+        // don't stop a match
+        for (text, expected) in [
+            ("邮箱john@example.com谢谢", "邮箱[email-redacted]谢谢"),
+            ("电话07700900123请回电", "电话[telephone-redacted]请回电"),
+            ("邮编SW1A 1AA谢谢", "邮编[postcode-redacted]谢谢"),
+            ("番号AB123456Cです", "番号[nino-redacted]です"),
+            ("地址192.168.1.1谢谢", "地址[ip_address-redacted]谢谢"),
+            (
+                "电话0033 1 23 45 67 89谢谢",
+                "电话[international-telephone-redacted]谢谢",
+            ),
+        ] {
+            for ignore_case in [false, true] {
+                assert_eq!(
+                    clean_pii_core(text, Cleaning::Redact, ignore_case, None),
+                    expected,
+                    "input: {}",
+                    text
+                );
+            }
+        }
+    }
+
+    #[test]
     fn test_international_telephone_redacted_whole() {
         for (text, expected) in [
             (
