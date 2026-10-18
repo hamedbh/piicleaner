@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [ main, testing ]
+    branches: [ main ]
   pull_request:
     branches: [ main ]
 
@@ -13,16 +13,18 @@ jobs:
   build:
     name: Build wheel and run Rust tests (${{ matrix.os }})
     strategy:
+      # A runner fault on one OS shouldn't cancel the others
+      fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
 
     runs-on: ${{ matrix.os }}
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7
 
     - name: Install uv
-      uses: astral-sh/setup-uv@v3
+      uses: astral-sh/setup-uv@v10.3.0
       with:
         version: "latest"
         enable-cache: true
@@ -36,30 +38,71 @@ jobs:
     - name: Install Rust
       uses: dtolnay/rust-toolchain@stable
 
+    # Caches compiled dependencies, not this crate's own output, and prunes
+    # stale files before saving
     - name: Cache Rust dependencies
-      uses: actions/cache@v4
-      with:
-        path: |
-          ~/.cargo/registry
-          ~/.cargo/git
-          target/
-        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-        restore-keys: ${{ runner.os }}-cargo-
+      uses: Swatinem/rust-cache@v2
 
     - name: Build wheel
       run: uv build --wheel --python 3.11 --out-dir dist
 
-    # A bare venv gives pyo3 an interpreter without building the package
+    # A bare venv gives pyo3 an interpreter without building the package.
+    # The tests compile every dependency again in the debug profile (release
+    # wouldn't reuse the wheel's build: dev-dependencies change features in
+    # shared crates). Without debug info that's ~25% quicker and the build
+    # is a third of the size, so the cache saves and restores faster
     - name: Run Rust tests
+      env:
+        CARGO_PROFILE_DEV_DEBUG: 0
       run: |
         uv venv --python 3.11
         uv run --no-sync cargo test
 
     - name: Store wheel
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: wheel-${{ matrix.os }}
         path: dist/*.whl
+
+  # Lint and format checks for Python and Rust, once, on one OS
+  lint:
+    name: Lint and format
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v7
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v10.3.0
+      with:
+        version: "latest"
+        enable-cache: true
+        cache-dependency-glob: "**/uv.lock"
+        cache-suffix: "lint"
+
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        components: clippy, rustfmt
+
+    - name: Cache Rust dependencies
+      uses: Swatinem/rust-cache@v2
+
+    - name: Install dev dependencies
+      run: uv sync --dev --no-install-project --python 3.11
+
+    - name: ruff check
+      run: uv run --no-sync ruff check
+
+    - name: ruff format --check
+      run: uv run --no-sync ruff format --check
+
+    - name: cargo fmt --check
+      run: cargo fmt --check
+
+    # pyo3's build script needs a Python interpreter, from the venv above
+    - name: cargo clippy
+      run: uv run --no-sync cargo clippy --all-targets -- -D warnings
 
   # Check the crate builds with the oldest supported Rust, the rust-version
   # in Cargo.toml
@@ -68,10 +111,10 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7
 
     - name: Install uv
-      uses: astral-sh/setup-uv@v3
+      uses: astral-sh/setup-uv@v10.3.0
       with:
         version: "latest"
 
@@ -83,6 +126,9 @@ jobs:
       uses: dtolnay/rust-toolchain@master
       with:
         toolchain: ${{ steps.msrv.outputs.version }}
+
+    - name: Cache Rust dependencies
+      uses: Swatinem/rust-cache@v2
 
     # pyo3's build script needs a Python interpreter
     - name: Check
@@ -96,6 +142,7 @@ jobs:
     name: Test (${{ matrix.os }}, ${{ matrix.python-version }})
     needs: build
     strategy:
+      fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
         python-version: ['3.11', '3.12', '3.13', '3.14', '3.15']
@@ -103,10 +150,10 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7
 
     - name: Install uv
-      uses: astral-sh/setup-uv@v3
+      uses: astral-sh/setup-uv@v10.3.0
       with:
         version: "latest"
         enable-cache: true
@@ -117,7 +164,7 @@ jobs:
       run: uv python install ${{ matrix.python-version }}
 
     - name: Download wheel
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v8
       with:
         name: wheel-${{ matrix.os }}
         path: dist
@@ -135,6 +182,3 @@ jobs:
 
     - name: Run Python tests
       run: uv run --no-sync pytest -v -m "not performance"
-
-    - name: Check code formatting
-      run: uv run --no-sync ruff check
