@@ -39,9 +39,13 @@ jobs:
       uses: dtolnay/rust-toolchain@stable
 
     # Caches compiled dependencies, not this crate's own output, and prunes
-    # stale files before saving
+    # stale files before saving. target/maturin holds the pyo3 config file
+    # maturin passes to pyo3-ffi's build script: if it's missing, maturin
+    # writes it again, and pyo3, pyo3-ffi and most of Polars are recompiled
     - name: Cache Rust dependencies
       uses: Swatinem/rust-cache@v2
+      with:
+        cache-directories: target/maturin
 
     - name: Build wheel
       run: uv build --wheel --python 3.11 --out-dir dist
