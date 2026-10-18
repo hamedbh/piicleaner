@@ -1,0 +1,18 @@
+# Required: do not remove. On macOS, `cargo test` and `cargo bench` also
+# link the cdylib, a Python extension that leaves Python's C API symbols
+# for the interpreter to provide at load time. macOS's linker rejects that
+# ("Undefined symbols for architecture arm64: _PyBool_Type ...") unless
+# told to allow it. maturin adds these flags itself when building wheels,
+# but plain cargo doesn't. Removing this file was tried in #92 and broke
+# the macOS CI job.
+[target.aarch64-apple-darwin]
+rustflags = [
+  "-C", "link-arg=-undefined",
+  "-C", "link-arg=dynamic_lookup",
+]
+
+[target.x86_64-apple-darwin]
+rustflags = [
+  "-C", "link-arg=-undefined", 
+  "-C", "link-arg=dynamic_lookup",
+]
