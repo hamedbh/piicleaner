@@ -37,14 +37,27 @@ fn select_cleaners(
 fn collect_matches(text: &str, cleaners: &[&str], ignore_case: bool) -> Vec<Match> {
     let (compiled, patterns_set) = patterns::get_patterns(ignore_case);
 
-    // Early exit when using "all" cleaners
-    if is_all(cleaners) && !patterns_set.is_match(text) {
-        return Vec::new();
-    }
+    // With "all" cleaners, the RegexSet first checks for any match, which is
+    // the cheapest way to skip text without PII. If there is one, it finds
+    // which patterns match, so only those are run again to find the spans
+    let set_matches = if is_all(cleaners) {
+        if !patterns_set.is_match(text) {
+            return Vec::new();
+        }
+        Some(patterns_set.matches(text))
+    } else {
+        None
+    };
 
     let mut matches = Vec::new();
     for cleaner in select_cleaners(compiled, cleaners) {
-        for regex in &cleaner.regexes {
+        for (i, regex) in cleaner.regexes.iter().enumerate() {
+            if set_matches
+                .as_ref()
+                .is_some_and(|set| !set.matched(cleaner.set_start + i))
+            {
+                continue;
+            }
             for m in regex.find_iter(text) {
                 if m.start() < m.end() {
                     matches.push(Match {
@@ -387,6 +400,43 @@ mod tests {
                 if method == Cleaning::Replace && !detect_pii_core(text, false).is_empty() {
                     assert_eq!(result, "[PII detected, text redacted]");
                 }
+            }
+        }
+    }
+
+    #[test]
+    fn test_all_matches_every_cleaner_listed() {
+        // "all" runs only the regexes the RegexSet matched; listing every
+        // cleaner runs each regex. The results must be the same
+        let every = patterns::get_registry().get_available_cleaners();
+        for text in [
+            "No PII here",
+            "Email test@example.com, NINO AB123456C, postcode SW1A 1AA",
+            "Call 07700 900123 or +1 415 555 0132 from 192.168.1.1 or 2001:db8::1",
+            "Paid £1,250.00 to 12 High Street, ref: 123456, <b>bold</b>",
+            "deadbeef-dead-beef-dead-beefdeadbeef and asm 123456789012345678",
+            "邮箱john@example.com谢谢, 电话07700900123",
+            "",
+        ] {
+            for ignore_case in [false, true] {
+                assert_eq!(
+                    detect_pii_with_cleaners_core(text, &["all"], ignore_case),
+                    detect_pii_with_cleaners_core(text, &every, ignore_case),
+                    "input: {}",
+                    text
+                );
+                assert_eq!(
+                    clean_pii_with_cleaners_core(
+                        text,
+                        &["all"],
+                        Cleaning::Redact,
+                        ignore_case,
+                        None
+                    ),
+                    clean_pii_with_cleaners_core(text, &every, Cleaning::Redact, ignore_case, None),
+                    "input: {}",
+                    text
+                );
             }
         }
     }

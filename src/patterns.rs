@@ -164,28 +164,37 @@ pub struct CompiledCleaner {
     pub name: &'static str,
     /// Position in the registry; lower values take precedence.
     pub priority: usize,
+    /// Index of this cleaner's first pattern in the `RegexSet`, whose
+    /// patterns are every cleaner's in registry order.
+    pub set_start: usize,
     pub regexes: Vec<Regex>,
     pub replacement: String,
 }
 
 fn compile_cleaners(ignore_case: bool) -> Vec<CompiledCleaner> {
+    let mut set_start = 0;
     get_registry()
         .patterns
         .iter()
         .enumerate()
-        .map(|(priority, (name, patterns))| CompiledCleaner {
-            name,
-            priority,
-            regexes: patterns
-                .iter()
-                .map(|p| {
-                    RegexBuilder::new(p)
-                        .case_insensitive(ignore_case)
-                        .build()
-                        .expect("Invalid regex")
-                })
-                .collect(),
-            replacement: format!("[{}-redacted]", name),
+        .map(|(priority, (name, patterns))| {
+            let start = set_start;
+            set_start += patterns.len();
+            CompiledCleaner {
+                name,
+                priority,
+                set_start: start,
+                regexes: patterns
+                    .iter()
+                    .map(|p| {
+                        RegexBuilder::new(p)
+                            .case_insensitive(ignore_case)
+                            .build()
+                            .expect("Invalid regex")
+                    })
+                    .collect(),
+                replacement: format!("[{}-redacted]", name),
+            }
         })
         .collect()
 }
