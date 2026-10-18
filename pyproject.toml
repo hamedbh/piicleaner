@@ -61,7 +61,6 @@ dev = [
 docs = [
     "furo>=2024.8.6",
     "linkify-it-py>=2.0.3",
-    "maturin>=1.8.6",
     "myst-parser>=4.0.1",
     "sphinx>=8.1.3",
 ]

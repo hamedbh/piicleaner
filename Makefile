@@ -18,7 +18,7 @@ build:  ## Build release version
 	uv run maturin build --release
 
 docs: ## Render the docs
-	uv export --only-group dev -o docs/requirements.txt
+	uv export --only-group docs -o docs/requirements.txt
 	uv run --directory docs sphinx-build -b html . _build/html
 
 test:  ## Run tests (no performance)
