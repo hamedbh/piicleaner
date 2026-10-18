@@ -816,7 +816,6 @@ dev = [
 docs = [
     { name = "furo" },
     { name = "linkify-it-py" },
-    { name = "maturin" },
     { name = "myst-parser" },
     { name = "sphinx" },
 ]
@@ -846,7 +845,6 @@ dev = [
 docs = [
     { name = "furo", specifier = ">=2024.8.6" },
     { name = "linkify-it-py", specifier = ">=2.0.3" },
-    { name = "maturin", specifier = ">=1.8.6" },
     { name = "myst-parser", specifier = ">=4.0.1" },
     { name = "sphinx", specifier = ">=8.1.3" },
 ]
