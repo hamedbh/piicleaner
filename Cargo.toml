@@ -2,6 +2,9 @@
 name = "piicleaner"
 version = "0.7.0-dev.0"
 edition = "2021"
+# The oldest Rust the dependencies build with (sysinfo, via Polars, needs
+# 1.95). CI checks the crate builds with it
+rust-version = "1.95"
 
 [lib]
 name = "piicleaner"

@@ -61,6 +61,35 @@ jobs:
         name: wheel-${{ matrix.os }}
         path: dist/*.whl
 
+  # Check the crate builds with the oldest supported Rust, the rust-version
+  # in Cargo.toml
+  msrv:
+    name: Check minimum Rust version
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v3
+      with:
+        version: "latest"
+
+    - name: Read rust-version
+      id: msrv
+      run: echo "version=$(grep -m1 '^rust-version' Cargo.toml | cut -d'"' -f2)" >> "$GITHUB_OUTPUT"
+
+    - name: Install Rust ${{ steps.msrv.outputs.version }}
+      uses: dtolnay/rust-toolchain@master
+      with:
+        toolchain: ${{ steps.msrv.outputs.version }}
+
+    # pyo3's build script needs a Python interpreter
+    - name: Check
+      run: |
+        uv venv --python 3.11
+        uv run --no-sync cargo check --locked --all-targets
+
   # Install the wheel built above and run the Python tests against it. No
   # Rust is compiled here
   test:
