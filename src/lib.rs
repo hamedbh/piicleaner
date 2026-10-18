@@ -161,23 +161,32 @@ pub fn detect_pii_with_cleaners(
 /// Vectorised detect PII for multiple texts
 #[pyfunction]
 #[pyo3(signature = (texts, ignore_case = true))]
-pub fn detect_pii_batch(texts: Vec<String>, ignore_case: bool) -> BatchDetectionResult {
-    let results = core::detect_pii_with_cleaners_batch_core(&texts, &["all"], ignore_case);
-    Ok(to_char_offsets_batch(&texts, results))
+pub fn detect_pii_batch(
+    py: Python<'_>,
+    texts: Vec<String>,
+    ignore_case: bool,
+) -> BatchDetectionResult {
+    Ok(py.detach(|| {
+        let results = core::detect_pii_with_cleaners_batch_core(&texts, &["all"], ignore_case);
+        to_char_offsets_batch(&texts, results)
+    }))
 }
 
 /// Vectorised detect PII with specific cleaners for multiple texts
 #[pyfunction]
 #[pyo3(signature = (texts, cleaners, ignore_case = true))]
 pub fn detect_pii_with_cleaners_batch(
+    py: Python<'_>,
     texts: Vec<String>,
     cleaners: Vec<String>,
     ignore_case: bool,
 ) -> BatchDetectionResult {
     let cleaner_refs: Vec<&str> = cleaners.iter().map(|s| s.as_str()).collect();
     validate_cleaners(&cleaner_refs)?;
-    let results = core::detect_pii_with_cleaners_batch_core(&texts, &cleaner_refs, ignore_case);
-    Ok(to_char_offsets_batch(&texts, results))
+    Ok(py.detach(|| {
+        let results = core::detect_pii_with_cleaners_batch_core(&texts, &cleaner_refs, ignore_case);
+        to_char_offsets_batch(&texts, results)
+    }))
 }
 
 // ============================================================================
@@ -230,6 +239,7 @@ pub fn clean_pii_with_cleaners(
 #[pyfunction]
 #[pyo3(signature = (texts, cleaning, ignore_case = true, replace_string = None))]
 pub fn clean_pii_batch(
+    py: Python<'_>,
     texts: Vec<String>,
     cleaning: &str,
     ignore_case: bool,
@@ -237,19 +247,22 @@ pub fn clean_pii_batch(
 ) -> PyResult<Vec<String>> {
     let cleaning_enum = Cleaning::from_str(cleaning)?;
     let replace_str = replace_string.as_deref();
-    Ok(core::clean_pii_with_cleaners_batch_core(
-        &texts,
-        &["all"],
-        cleaning_enum,
-        ignore_case,
-        replace_str,
-    ))
+    Ok(py.detach(|| {
+        core::clean_pii_with_cleaners_batch_core(
+            &texts,
+            &["all"],
+            cleaning_enum,
+            ignore_case,
+            replace_str,
+        )
+    }))
 }
 
 /// Vectorised clean PII with specific cleaners for multiple texts
 #[pyfunction]
 #[pyo3(signature = (texts, cleaners, cleaning, ignore_case = true, replace_string = None))]
 pub fn clean_pii_with_cleaners_batch(
+    py: Python<'_>,
     texts: Vec<String>,
     cleaners: Vec<String>,
     cleaning: &str,
@@ -260,13 +273,15 @@ pub fn clean_pii_with_cleaners_batch(
     let cleaner_refs: Vec<&str> = cleaners.iter().map(|s| s.as_str()).collect();
     validate_cleaners(&cleaner_refs)?;
     let replace_str = replace_string.as_deref();
-    Ok(core::clean_pii_with_cleaners_batch_core(
-        &texts,
-        &cleaner_refs,
-        cleaning_enum,
-        ignore_case,
-        replace_str,
-    ))
+    Ok(py.detach(|| {
+        core::clean_pii_with_cleaners_batch_core(
+            &texts,
+            &cleaner_refs,
+            cleaning_enum,
+            ignore_case,
+            replace_str,
+        )
+    }))
 }
 
 // ============================================================================
