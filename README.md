@@ -39,15 +39,13 @@ PIICleaner provides pre-built wheels for the platforms below. Each wheel works o
 
 - **Windows**: x86_64 (Intel/AMD 64-bit)
 - **macOS**: x86_64 (Intel) and arm64 (Apple Silicon)
-- **Linux**: x86_64 (Intel/AMD 64-bit)
-
-**Note**: Linux ARM64 (aarch) wheels are not currently provides. Users on ARM64 Linux systems (e.g. Raspberry Pi, AWS Graviton) will need to build from source. See [Building from Source](#building-from-source) below.
+- **Linux**: x86_64 (Intel/AMD 64-bit) and aarch64 (ARM64, e.g. AWS Graviton, Raspberry Pi), for both glibc (manylinux) and musl (musllinux, e.g. Alpine) distributions
 
 ### Building from Source
 
-For platforms without pre-built wheels you'll need:
+On other platforms pip builds piicleaner from source, which needs:
 
-- Rust toolchain (1.70 or newer), install from [rustup.rs](https://rustup.rs)
+- Rust toolchain (1.95 or newer), install from [rustup.rs](https://rustup.rs)
 - Python development headers
 
 ```bash
@@ -76,8 +74,10 @@ print(cleaned)  # "Contact John at [email-redacted] or call [telephone-redacted]
 # Detect PII locations with type information
 matches = cleaner.detect_pii(text)
 print(matches)  
-# [{'start': 16, 'end': 32, 'text': 'JOHN@EXAMPLE.COM', 'type': 'email'}, 
-#  {'start': 41, 'end': 57, 'text': '+44 20 7946 0958', 'type': 'telephone'}]
+# [{'start': 16, 'end': 32, 'text': 'JOHN@EXAMPLE.COM', 'type': 'email'},
+#  {'start': 41, 'end': 57, 'text': '+44 20 7946 0958', 'type': 'telephone'},
+#  {'start': 41, 'end': 57, 'text': '+44 20 7946 0958', 'type': 'international-telephone'}]
+# Every cleaner's match is listed, so one piece of text can appear more than once
 # 'start' and 'end' are character offsets, so they slice the original string:
 # text[16:32] == 'JOHN@EXAMPLE.COM', even when the text contains non-ASCII
 # characters such as '£' or 'é'
@@ -190,11 +190,18 @@ print(Cleaner.get_available_cleaners())
 | `cash-amount` | Currency amounts | `£1,500`, `$2000` |
 | `case-id` | Case/reference IDs | UUIDs, reference numbers |
 | `tag` | HTML/XML tags | `<script>`, `<div>` |
+| `ip_address` | IPv4 and IPv6 addresses | `192.168.1.1`, `2001:db8::1`, `fe80::1%eth0` |
 
 ## Cleaning Methods
 
 - **`"redact"`**: Redact the PII, replacing it with semantic labels like `[email-redacted]`, `[telephone-redacted]`. Where matches from different cleaners overlap, the whole overlapping region is redacted and labelled with the highest-priority cleaner, in the order returned by `piicleaner.get_available_cleaners()`. The same input always produces the same output.
 - **`"replace"`**: Replace the entire string if _any_ PII is detected (uses custom replacement string if provided)
+
+## Over-Matching Is Expected
+
+PIICleaner errs towards redaction. Missing PII costs far more than redacting text that isn't PII, so the patterns are deliberately broad and some false positives are expected behaviour, not bugs. For example, with the default case-insensitive matching, `item a1 1aa` is redacted as a postcode.
+
+If you need fewer false positives, choose only the cleaners you need, or use `ignore_case=False`. Both make it more likely that some PII is missed.
 
 ## Case Sensitivity
 
@@ -203,7 +210,7 @@ By default, PIICleaner performs **case-insensitive** matching to catch PII regar
 - `ignore_case=True` (default): Detects `ab123456c`, `AB123456C`, and `Ab123456C` as valid NINOs
 - `ignore_case=False`: Only detects patterns matching the exact case defined in regex patterns
 
-This ensures maximum PII detection while allowing precise control when needed. Set it once for a `Cleaner` with `Cleaner(ignore_case=False)`, or pass `ignore_case` to a single call.
+Case-insensitive matching finds more PII, and also more false positives, notably for `nino`, `postcode` and `case-id`. Set it once for a `Cleaner` with `Cleaner(ignore_case=False)`, or pass `ignore_case` to a single call.
 
 ## API Reference
 
@@ -250,7 +257,7 @@ PIICleaner is built with Rust for maximum performance:
 
 - Python ≥ 3.11
 - Polars ≥ 1.0.0 (optional, for Polars DataFrame support)
-- Pandas ≥ 2.0.0 (optional, for Pandas DataFrame support)
+- Pandas ≥ 2.3.0 (optional, for Pandas DataFrame support)
 
 ## License
 

@@ -3,13 +3,16 @@
 # For the full list of built-in configuration values, see the documentation:
 # https://www.sphinx-doc.org/en/master/usage/configuration.html
 
+from importlib.metadata import version as _pkg_version
+
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
 project = "PIICleaner"
 copyright = "2025, Hamed Bastan-Hagh"
 author = "Hamed Bastan-Hagh"
-release = "0.4.0"
+# The installed package's version, which comes from Cargo.toml
+release = _pkg_version("piicleaner")
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
