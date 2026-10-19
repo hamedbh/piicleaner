@@ -10,13 +10,13 @@ use polars_arrow::array::ListArray;
 use polars_arrow::bitmap::Bitmap;
 use polars_arrow::offset::OffsetsBuffer;
 use polars_core::prelude::*;
-use polars_error::{polars_err, PolarsResult};
+use polars_error::{PolarsResult, polars_err};
 use pyo3_polars::derive::polars_expr;
 use rayon::prelude::*;
 use serde::Deserialize;
 
 use crate::core::{self, Cleaning};
-use crate::{check_cleaners, to_char_offsets, DetectionMatch};
+use crate::{DetectionMatch, check_cleaners, to_char_offsets};
 
 #[derive(Deserialize)]
 struct CleanKwargs {
