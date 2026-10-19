@@ -40,9 +40,10 @@ jobs:
           path: dist/*.tar.gz
 
   # Build wheels for all platforms. The extension uses the stable ABI
-  # (pyo3's abi3-py311 feature), so one wheel per platform covers Python 3.11+
+  # (pyo3's abi3-py311 feature), so one wheel per platform covers Python 3.11+.
+  # Linux aarch64 and musllinux wheels are cross-compiled on x86_64 runners
   build-wheels:
-    name: Build wheels on ${{ matrix.platform.os }}
+    name: Build wheels on ${{ matrix.platform.os }} (${{ matrix.platform.target }}, ${{ matrix.platform.manylinux }})
     runs-on: ${{ matrix.platform.os }}
     strategy:
       fail-fast: false
@@ -51,6 +52,15 @@ jobs:
           - os: ubuntu-latest
             target: x86_64
             manylinux: auto
+          - os: ubuntu-latest
+            target: aarch64
+            manylinux: auto
+          - os: ubuntu-latest
+            target: x86_64
+            manylinux: musllinux_1_2
+          - os: ubuntu-latest
+            target: aarch64
+            manylinux: musllinux_1_2
           - os: windows-latest
             target: x86_64
             manylinux: false
@@ -83,7 +93,7 @@ jobs:
       - name: Store wheels
         uses: actions/upload-artifact@v7
         with:
-          name: python-wheels-${{ matrix.platform.os }}-${{ matrix.platform.target }}
+          name: python-wheels-${{ matrix.platform.os }}-${{ matrix.platform.target }}-${{ matrix.platform.manylinux }}
           path: dist/*.whl
 
   # Merge all artifacts into one for easier downloading
@@ -206,8 +216,9 @@ jobs:
     needs: [publish-to-testpypi]
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        os: [ubuntu-latest, ubuntu-24.04-arm, macos-latest]
         python-version: ["3.11", "3.15"]  # Test oldest and newest
     
     steps:
@@ -224,15 +235,47 @@ jobs:
           time.sleep(60)
       
       # --only-binary stops pip quietly building from the sdist (the runners
-      # have Rust), so this fails if the abi3 wheel doesn't install
+      # have Rust), so this fails if the abi3 wheel doesn't install. --pre so
+      # a dry run of a dev version installs that version, not the last
+      # release
       - name: Install from TestPyPI
         run: |
-          pip install --only-binary piicleaner \
+          pip install --pre --only-binary piicleaner \
             --index-url https://test.pypi.org/simple/ \
             --extra-index-url https://pypi.org/simple/ \
             piicleaner
       
-      - name: Test import
+      # Calls into the extension, single string and batch (rayon), so a
+      # wheel that imports but fails on first use is caught
+      - name: Smoke test
         run: |
-          python -c "import piicleaner; print('Successfully imported piicleaner')"
+          python -c "from piicleaner import Cleaner; c = Cleaner(); assert c.clean_pii('a@b.com', 'redact') == '[email-redacted]'; assert c.clean_pii_list(['a@b.com', 'x'], 'redact') == ['[email-redacted]', 'x']; print('piicleaner works')"
 
+  # The musllinux wheels, on Alpine on each architecture
+  test-install-musl:
+    name: Test installation from TestPyPI (Alpine, ${{ matrix.os }}, ${{ matrix.python-version }})
+    needs: [publish-to-testpypi]
+    runs-on: ${{ matrix.os }}
+    container: python:${{ matrix.python-version }}-alpine
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, ubuntu-24.04-arm]
+        python-version: ["3.11", "3.15"]
+
+    steps:
+      - name: Wait for TestPyPI to update
+        run: sleep 60
+
+      - name: Install from TestPyPI
+        run: |
+          pip install --pre --only-binary piicleaner \
+            --index-url https://test.pypi.org/simple/ \
+            --extra-index-url https://pypi.org/simple/ \
+            piicleaner
+
+      # Calls into the extension, single string and batch (rayon), so a
+      # wheel that imports but fails on first use is caught
+      - name: Smoke test
+        run: |
+          python -c "from piicleaner import Cleaner; c = Cleaner(); assert c.clean_pii('a@b.com', 'redact') == '[email-redacted]'; assert c.clean_pii_list(['a@b.com', 'x'], 'redact') == ['[email-redacted]', 'x']; print('piicleaner works')"
