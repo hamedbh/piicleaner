@@ -1,6 +1,6 @@
-use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
+use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
 use piicleaner::core::{
-    clean_pii_with_cleaners_batch_core, detect_pii_with_cleaners_batch_core, Cleaning,
+    Cleaning, clean_pii_with_cleaners_batch_core, detect_pii_with_cleaners_batch_core,
 };
 use std::hint::black_box;
 
