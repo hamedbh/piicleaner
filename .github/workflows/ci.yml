@@ -36,10 +36,29 @@ jobs:
       run: uv python install 3.11
 
     - name: Install Rust
+      id: rust
       uses: dtolnay/rust-toolchain@stable
 
+    # The interpreter pyo3 builds against in the Rust tests, given directly:
+    # with a venv, pyo3's build script watches the venv's pyvenv.cfg, which is
+    # new on every run, so pyo3 and most of Polars rebuilt every time (#94).
+    # The cache key has the rustc and Python versions, which invalidate the
+    # build, and Cargo.lock without piicleaner's own version, so a version
+    # bump doesn't start a new 1-2 GB cache
+    - name: Find Python and the cache key
+      id: env
+      shell: bash
+      run: |
+        python=$(uv python find 3.11)
+        version=$("$python" -c "import platform; print(platform.python_version())")
+        lock=$(sed '/^name = "piicleaner"$/{n;d;}' Cargo.lock | git hash-object --stdin)
+        echo "python=$python" >> "$GITHUB_OUTPUT"
+        prefix="${{ runner.os }}-cargo-${{ steps.rust.outputs.cachekey }}-py$version-"
+        echo "prefix=$prefix" >> "$GITHUB_OUTPUT"
+        echo "key=$prefix$lock" >> "$GITHUB_OUTPUT"
+
     # All of target/ and ~/.cargo, so the wheel build is warm. rust-cache
-    # left pyo3 and most of Polars to recompile on every run (#94)
+    # left pyo3 and most of Polars to recompile on every run
     - name: Cache Rust dependencies
       uses: actions/cache@v6
       with:
@@ -47,45 +66,23 @@ jobs:
           ~/.cargo/registry
           ~/.cargo/git
           target/
-        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-        restore-keys: ${{ runner.os }}-cargo-
+        key: ${{ steps.env.outputs.key }}
+        restore-keys: |
+          ${{ steps.env.outputs.prefix }}
+          ${{ runner.os }}-cargo-
 
     - name: Build wheel
       run: uv build --wheel --python 3.11 --out-dir dist
 
-    # A bare venv gives pyo3 an interpreter without building the package.
     # The tests compile the dependencies in the debug profile (release
     # wouldn't reuse the wheel's build: dev-dependencies change features in
     # shared crates). Without debug info that's ~25% quicker, and the build
     # is a third of the size
-    # DIAGNOSTIC for #94, to be removed: why the pyo3 chain is rebuilt
-    - name: Fingerprint diagnostic
-      shell: bash
-      env:
-        CARGO_PROFILE_DEV_DEBUG: 0
-        CARGO_LOG: cargo::core::compiler::fingerprint=info
-      run: |
-        set +e +o pipefail
-        uv venv --python 3.11
-        uv run --no-sync cargo test --no-run > fingerprint.log 2>&1
-        echo "---- crates compiled: $(grep -c ' Compiling ' fingerprint.log)"
-        grep ' Compiling ' fingerprint.log | head -30
-        echo "---- dirty reasons (excluding stale dependencies)"
-        grep -E 'dirty|stale|fingerprint error' fingerprint.log | grep -vE 'StaleDependency' | head -60
-        exit 0
-
-    - name: Upload fingerprint log
-      uses: actions/upload-artifact@v7
-      with:
-        name: fingerprint-${{ matrix.os }}
-        path: fingerprint.log
-
     - name: Run Rust tests
       env:
         CARGO_PROFILE_DEV_DEBUG: 0
-      run: |
-        uv venv --python 3.11
-        uv run --no-sync cargo test
+        PYO3_PYTHON: ${{ steps.env.outputs.python }}
+      run: cargo test
 
     - name: Store wheel
       uses: actions/upload-artifact@v7
