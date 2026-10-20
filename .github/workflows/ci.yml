@@ -65,11 +65,20 @@ jobs:
         CARGO_PROFILE_DEV_DEBUG: 0
         CARGO_LOG: cargo::core::compiler::fingerprint=info
       run: |
+        set +e +o pipefail
         uv venv --python 3.11
-        uv run --no-sync cargo test --no-run > fingerprint.log 2>&1 || true
-        grep -E 'dirty|stale|fingerprint error' fingerprint.log | grep -vE 'dirty: FsStatusOutdated\(StaleDependency' | head -60
-        echo "---- pyo3 lines"
-        grep -E 'pyo3' fingerprint.log | grep -iE 'dirty|stale|changed' | head -40
+        uv run --no-sync cargo test --no-run > fingerprint.log 2>&1
+        echo "---- crates compiled: $(grep -c ' Compiling ' fingerprint.log)"
+        grep ' Compiling ' fingerprint.log | head -30
+        echo "---- dirty reasons (excluding stale dependencies)"
+        grep -E 'dirty|stale|fingerprint error' fingerprint.log | grep -vE 'StaleDependency' | head -60
+        exit 0
+
+    - name: Upload fingerprint log
+      uses: actions/upload-artifact@v7
+      with:
+        name: fingerprint-${{ matrix.os }}
+        path: fingerprint.log
 
     - name: Run Rust tests
       env:
