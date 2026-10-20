@@ -58,6 +58,19 @@ jobs:
     # wouldn't reuse the wheel's build: dev-dependencies change features in
     # shared crates). Without debug info that's ~25% quicker, and the build
     # is a third of the size
+    # DIAGNOSTIC for #94, to be removed: why the pyo3 chain is rebuilt
+    - name: Fingerprint diagnostic
+      shell: bash
+      env:
+        CARGO_PROFILE_DEV_DEBUG: 0
+        CARGO_LOG: cargo::core::compiler::fingerprint=info
+      run: |
+        uv venv --python 3.11
+        uv run --no-sync cargo test --no-run > fingerprint.log 2>&1 || true
+        grep -E 'dirty|stale|fingerprint error' fingerprint.log | grep -vE 'dirty: FsStatusOutdated\(StaleDependency' | head -60
+        echo "---- pyo3 lines"
+        grep -E 'pyo3' fingerprint.log | grep -iE 'dirty|stale|changed' | head -40
+
     - name: Run Rust tests
       env:
         CARGO_PROFILE_DEV_DEBUG: 0
